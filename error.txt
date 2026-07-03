@@ -1,0 +1,3 @@
+rror: Distribution `opencv-python==4.13.0.92 @ registry+https://pypi.org/simple` can't be installed because it doesn't have a source distribution or wheel for the current platform
+
+hint: You're on macOS (`macosx_12_0_x86_64`), but `opencv-python` (v4.13.0.92) only has wheels for the following platforms: `manylinux_2_17_aarch64`, `manylinux_2_17_x86_64`, `manylinux_2_28_aarch64`, `manylinux_2_28_x86_64`, `manylinux2014_aarch64`, `manylinux2014_x86_64`, `macosx_13_0_arm64`, `macosx_14_0_x86_64`, `win32`, `win_amd64`; consider adding your platform to `tool.uv.required-environments` to ensure uv resolves to a version with compatible wheels
