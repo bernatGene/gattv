@@ -7,10 +7,17 @@ on-demand camera photo.
 
 ## Setup
 
+Use Python 3.12 or 3.13. Python 3.14 may force OpenCV to build from source on
+older Macs.
+
+```bash
+uv python install 3.12
+```
+
 Install dependencies:
 
 ```bash
-uv sync
+uv sync --python 3.12
 ```
 
 Create local config:
