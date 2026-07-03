@@ -20,6 +20,9 @@ Install dependencies:
 uv sync --python 3.12
 ```
 
+OpenCV is pinned below 4.13 because newer wheels do not support Monterey Intel
+Macs.
+
 Create local config:
 
 ```bash

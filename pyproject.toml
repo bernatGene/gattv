@@ -3,7 +3,7 @@ name = "gattv"
 version = "0.1.0"
 requires-python = ">=3.12,<3.14"
 dependencies = [
-    "opencv-python>=4.10,<5",
+    "opencv-python>=4.10,<4.13",
     "pydantic>=2.11",
     "python-telegram-bot>=22.3",
     "rich>=14.0",
@@ -21,4 +21,9 @@ build-backend = "hatchling.build"
 dev = [
     "pre-commit>=4.6.0",
     "ruff>=0.15.20",
+]
+
+[tool.uv]
+required-environments = [
+    "sys_platform == 'darwin' and platform_machine == 'x86_64'",
 ]
