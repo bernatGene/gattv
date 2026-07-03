@@ -38,6 +38,15 @@ Run the server:
 uv run gattv server
 ```
 
+On macOS, the server keeps the laptop awake while it is running by starting the
+built-in `caffeinate` command. It stops sleep prevention when the server exits.
+
+Test motion detection locally without starting Telegram:
+
+```bash
+uv run gattv motion-test
+```
+
 ## Bot Commands
 
 - `/start` checks that the bot is running.
@@ -57,3 +66,7 @@ webcam has more frames to settle auto-exposure before the photo is sent.
 
 `/video` records a temporary MJPG AVI clip, re-encodes it to H.264 MP4 with the
 bundled ffmpeg binary, sends it inline in Telegram, then deletes the temp files.
+
+`motion-test` opens the camera and prints live motion detection state until
+`Ctrl+C`. Tune the `[motion]` values in `gattv.toml` until cat-sized movement is
+detected without too much noise.
