@@ -6,7 +6,7 @@ separate from bot/CLI code so the interface can be changed later.
 
 ## Technology Stack
 
-- Python >=3.12,<3.14
+- Python >=3.10,<3.11
 - uv for dependency/project management
 - Typer for CLI
 - Rich for terminal UX

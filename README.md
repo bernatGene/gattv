@@ -7,21 +7,21 @@ on-demand camera photo.
 
 ## Setup
 
-Use Python 3.12 or 3.13. Python 3.14 may force OpenCV to build from source on
-older Macs.
+Use Python 3.10. Newer Python versions may force OpenCV to build from source on
+older Intel Macs.
 
 ```bash
-uv python install 3.12
+uv python install 3.10
 ```
 
 Install dependencies:
 
 ```bash
-uv sync --python 3.12
+uv sync --python 3.10
 ```
 
-OpenCV is pinned below 4.13 because newer wheels do not support Monterey Intel
-Macs.
+OpenCV is pinned to `4.5.4.60` because newer wheels do not support Monterey
+Intel Macs.
 
 Create local config:
 

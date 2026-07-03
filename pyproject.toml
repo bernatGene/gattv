@@ -1,12 +1,14 @@
 [project]
 name = "gattv"
 version = "0.1.0"
-requires-python = ">=3.12,<3.14"
+requires-python = ">=3.10,<3.11"
 dependencies = [
-    "opencv-python>=4.10,<4.13",
+    "numpy>=1.23,<2",
+    "opencv-python==4.5.4.60",
     "pydantic>=2.11",
     "python-telegram-bot>=22.3",
     "rich>=14.0",
+    "tomli>=2.0",
     "typer>=0.16",
 ]
 
