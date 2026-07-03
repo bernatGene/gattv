@@ -3,7 +3,7 @@
 A small Python service for monitoring a cat with an old laptop webcam.
 
 Current scope: run a Telegram bot that can be armed/disarmed and can send an
-on-demand camera photo.
+on-demand camera photo or short video clip.
 
 ## Setup
 
@@ -45,6 +45,7 @@ uv run gattv server
 - `/arm` enables armed state.
 - `/disarm` disables armed state.
 - `/photo` captures and sends one camera photo.
+- `/video` records and sends one short AVI clip.
 
 Only user IDs listed in `gattv.toml` are allowed to control the bot.
 
@@ -53,3 +54,6 @@ Settings.
 
 If `/photo` is too dark, increase `camera.warmup_frames` in `gattv.toml` so the
 webcam has more frames to settle auto-exposure before the photo is sent.
+
+`/video` sends an AVI file using MJPG encoding for compatibility with older
+OpenCV/macOS setups.

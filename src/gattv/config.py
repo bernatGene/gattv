@@ -19,6 +19,7 @@ class CameraConfig(BaseModel):
     height: int = Field(default=720, gt=0)
     fps: int = Field(default=15, gt=0)
     warmup_frames: int = Field(default=15, ge=1)
+    clip_seconds: int = Field(default=10, gt=0)
 
 
 class Config(BaseModel):

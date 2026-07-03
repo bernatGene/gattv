@@ -47,7 +47,8 @@ def server(config_path: Path = DEFAULT_CONFIG_PATH) -> None:
         f"index {config.camera.index}, {config.camera.width}x{config.camera.height} @ {config.camera.fps} fps",
     )
     table.add_row("Warmup frames", str(config.camera.warmup_frames))
-    table.add_row("Commands", "/start  /status  /arm  /disarm  /photo")
+    table.add_row("Clip length", f"{config.camera.clip_seconds}s")
+    table.add_row("Commands", "/start  /status  /arm  /disarm  /photo  /video")
     table.add_row("Stop", "Ctrl+C")
 
     console.print(

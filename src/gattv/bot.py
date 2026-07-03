@@ -19,6 +19,7 @@ class CatTvBot:
         self.config = config
         self.camera = camera
         self.state = BotState()
+        self.camera_lock = asyncio.Lock()
 
     def build_application(self) -> Application:
         application = Application.builder().token(self.config.bot_token).build()
@@ -27,6 +28,7 @@ class CatTvBot:
         application.add_handler(CommandHandler("arm", self.arm))
         application.add_handler(CommandHandler("disarm", self.disarm))
         application.add_handler(CommandHandler("photo", self.photo))
+        application.add_handler(CommandHandler("video", self.video))
         return application
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -34,7 +36,8 @@ class CatTvBot:
             return
 
         await self._reply(
-            update, "gattv is running. Use /status, /arm, /disarm, or /photo."
+            update,
+            "gattv is running. Use /status, /arm, /disarm, /photo, or /video.",
         )
 
     async def status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -64,8 +67,13 @@ class CatTvBot:
         if not await self._authorize(update):
             return
 
+        if self.camera_lock.locked():
+            await self._reply(update, "Camera busy, try again in a moment.")
+            return
+
         await self._reply(update, "Taking photo...")
         path: Path | None = None
+        await self.camera_lock.acquire()
         try:
             path = await asyncio.to_thread(self.camera.capture_photo)
             message = update.effective_message
@@ -75,6 +83,37 @@ class CatTvBot:
         except CameraError as error:
             await self._reply(update, f"Camera error: {error}")
         finally:
+            self.camera_lock.release()
+            if path is not None:
+                path.unlink(missing_ok=True)
+
+    async def video(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not await self._authorize(update):
+            return
+
+        if self.camera_lock.locked():
+            await self._reply(update, "Camera busy, try again in a moment.")
+            return
+
+        await self._reply(
+            update, f"Recording {self.camera.config.clip_seconds}s video..."
+        )
+        path: Path | None = None
+        await self.camera_lock.acquire()
+        try:
+            path = await asyncio.to_thread(self.camera.record_clip)
+            message = update.effective_message
+            if message is not None:
+                with path.open("rb") as video_file:
+                    await message.reply_document(
+                        document=video_file,
+                        filename="gattv-video.avi",
+                        caption="Video clip",
+                    )
+        except CameraError as error:
+            await self._reply(update, f"Camera error: {error}")
+        finally:
+            self.camera_lock.release()
             if path is not None:
                 path.unlink(missing_ok=True)
 
