@@ -45,7 +45,7 @@ uv run gattv server
 - `/arm` enables armed state.
 - `/disarm` disables armed state.
 - `/photo` captures and sends one camera photo.
-- `/video` records and sends one short AVI clip.
+- `/video` records and sends one short MP4 clip.
 
 Only user IDs listed in `gattv.toml` are allowed to control the bot.
 
@@ -55,5 +55,5 @@ Settings.
 If `/photo` is too dark, increase `camera.warmup_frames` in `gattv.toml` so the
 webcam has more frames to settle auto-exposure before the photo is sent.
 
-`/video` sends an AVI file using MJPG encoding for compatibility with older
-OpenCV/macOS setups.
+`/video` records a temporary MJPG AVI clip, re-encodes it to H.264 MP4 with the
+bundled ffmpeg binary, sends it inline in Telegram, then deletes the temp files.

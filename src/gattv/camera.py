@@ -1,9 +1,11 @@
 from pathlib import Path
+import subprocess
 import sys
 from tempfile import NamedTemporaryFile
 import time
 
 import cv2
+import imageio_ffmpeg
 import numpy as np
 
 from gattv.config import CameraConfig
@@ -39,19 +41,20 @@ class CameraService:
         duration = seconds or self.config.clip_seconds
         capture = self._open_capture()
         writer = None
-        path = None
+        raw_path = None
+        output_path = None
         try:
             frame = self._warm_up(capture)
             height, width = frame.shape[:2]
 
             with NamedTemporaryFile(
-                prefix="gattv-video-", suffix=".avi", delete=False
+                prefix="gattv-video-raw-", suffix=".avi", delete=False
             ) as file:
-                path = Path(file.name)
+                raw_path = Path(file.name)
 
             fourcc = cv2.VideoWriter_fourcc(*"MJPG")
             writer = cv2.VideoWriter(
-                str(path), fourcc, self.config.fps, (width, height)
+                str(raw_path), fourcc, self.config.fps, (width, height)
             )
             if not writer.isOpened():
                 raise CameraError("Could not open video writer.")
@@ -71,15 +74,49 @@ class CameraService:
                 if sleep_for > 0:
                     time.sleep(sleep_for)
 
-            return path
+            writer.release()
+            writer = None
+
+            with NamedTemporaryFile(
+                prefix="gattv-video-", suffix=".mp4", delete=False
+            ) as file:
+                output_path = Path(file.name)
+
+            self._encode_mp4(raw_path, output_path)
+            return output_path
         except Exception:
-            if path is not None:
-                path.unlink(missing_ok=True)
+            if output_path is not None:
+                output_path.unlink(missing_ok=True)
             raise
         finally:
             if writer is not None:
                 writer.release()
             capture.release()
+            if raw_path is not None:
+                raw_path.unlink(missing_ok=True)
+
+    def _encode_mp4(self, input_path: Path, output_path: Path) -> None:
+        command = [
+            imageio_ffmpeg.get_ffmpeg_exe(),
+            "-y",
+            "-i",
+            str(input_path),
+            "-an",
+            "-vcodec",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "28",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            str(output_path),
+        ]
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            raise CameraError(f"Could not encode MP4: {result.stderr.strip()}")
 
     def _warm_up(self, capture: cv2.VideoCapture) -> np.ndarray:
         if not capture.isOpened():

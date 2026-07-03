@@ -105,10 +105,11 @@ class CatTvBot:
             message = update.effective_message
             if message is not None:
                 with path.open("rb") as video_file:
-                    await message.reply_document(
-                        document=video_file,
-                        filename="gattv-video.avi",
+                    await message.reply_video(
+                        video=video_file,
+                        filename="gattv-video.mp4",
                         caption="Video clip",
+                        supports_streaming=True,
                     )
         except CameraError as error:
             await self._reply(update, f"Camera error: {error}")
