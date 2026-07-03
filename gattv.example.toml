@@ -1,0 +1,3 @@
+[telegram]
+bot_token = "123456789:replace-me"
+allowed_user_ids = [123456789]

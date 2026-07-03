@@ -1,0 +1,18 @@
+[project]
+name = "gattv"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "opencv-python>=5.0.0.93",
+    "pydantic>=2.11",
+    "python-telegram-bot>=22.3",
+    "rich>=14.0",
+    "typer>=0.16",
+]
+
+[project.scripts]
+gattv = "gattv.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
