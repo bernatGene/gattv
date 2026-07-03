@@ -1,3 +1,9 @@
 [telegram]
 bot_token = "123456789:replace-me"
 allowed_user_ids = [123456789]
+
+[camera]
+index = 0
+width = 1280
+height = 720
+fps = 15

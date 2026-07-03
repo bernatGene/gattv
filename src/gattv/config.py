@@ -12,8 +12,16 @@ class TelegramConfig(BaseModel):
     allowed_user_ids: set[int]
 
 
+class CameraConfig(BaseModel):
+    index: int = 0
+    width: int = Field(default=1280, gt=0)
+    height: int = Field(default=720, gt=0)
+    fps: int = Field(default=15, gt=0)
+
+
 class Config(BaseModel):
     telegram: TelegramConfig
+    camera: CameraConfig = CameraConfig()
 
 
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:

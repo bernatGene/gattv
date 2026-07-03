@@ -2,8 +2,8 @@
 
 A small Python service for monitoring a cat with an old laptop webcam.
 
-Current scope: run a Telegram bot that can be armed/disarmed. Camera and motion
-detection will be added next.
+Current scope: run a Telegram bot that can be armed/disarmed and can send an
+on-demand camera photo.
 
 ## Setup
 
@@ -19,7 +19,8 @@ Create local config:
 cp gattv.example.toml gattv.toml
 ```
 
-Edit `gattv.toml` with your Telegram bot token and allowed Telegram user ID.
+Edit `gattv.toml` with your Telegram bot token, allowed Telegram user ID, and
+camera settings.
 
 Run the server:
 
@@ -33,5 +34,9 @@ uv run gattv server
 - `/status` shows whether monitoring is armed.
 - `/arm` enables armed state.
 - `/disarm` disables armed state.
+- `/photo` captures and sends one camera photo.
 
 Only user IDs listed in `gattv.toml` are allowed to control the bot.
+
+On macOS, the terminal app running `gattv` may need camera permission in System
+Settings.
