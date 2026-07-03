@@ -17,11 +17,12 @@ class CameraConfig(BaseModel):
     width: int = Field(default=1280, gt=0)
     height: int = Field(default=720, gt=0)
     fps: int = Field(default=15, gt=0)
+    warmup_frames: int = Field(default=15, ge=1)
 
 
 class Config(BaseModel):
     telegram: TelegramConfig
-    camera: CameraConfig = CameraConfig()
+    camera: CameraConfig = Field(default_factory=CameraConfig)
 
 
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:

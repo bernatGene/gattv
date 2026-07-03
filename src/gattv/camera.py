@@ -1,4 +1,5 @@
 from pathlib import Path
+import sys
 from tempfile import NamedTemporaryFile
 
 import cv2
@@ -15,7 +16,7 @@ class CameraService:
         self.config = config
 
     def capture_photo(self) -> Path:
-        capture = cv2.VideoCapture(self.config.index)
+        capture = self._open_capture()
         try:
             if not capture.isOpened():
                 raise CameraError(f"Could not open camera index {self.config.index}.")
@@ -24,8 +25,13 @@ class CameraService:
             capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config.height)
             capture.set(cv2.CAP_PROP_FPS, self.config.fps)
 
-            ok, frame = capture.read()
-            if not ok:
+            frame = None
+            for _ in range(self.config.warmup_frames):
+                ok, frame = capture.read()
+                if not ok:
+                    raise CameraError("Could not read a frame from the camera.")
+
+            if frame is None:
                 raise CameraError("Could not read a frame from the camera.")
 
             with NamedTemporaryFile(
@@ -40,3 +46,9 @@ class CameraService:
             return path
         finally:
             capture.release()
+
+    def _open_capture(self) -> cv2.VideoCapture:
+        if sys.platform == "darwin":
+            return cv2.VideoCapture(self.config.index, cv2.CAP_AVFOUNDATION)
+
+        return cv2.VideoCapture(self.config.index)

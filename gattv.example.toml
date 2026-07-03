@@ -7,3 +7,4 @@ index = 0
 width = 1280
 height = 720
 fps = 15
+warmup_frames = 15

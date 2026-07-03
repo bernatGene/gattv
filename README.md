@@ -40,3 +40,6 @@ Only user IDs listed in `gattv.toml` are allowed to control the bot.
 
 On macOS, the terminal app running `gattv` may need camera permission in System
 Settings.
+
+If `/photo` is too dark, increase `camera.warmup_frames` in `gattv.toml` so the
+webcam has more frames to settle auto-exposure before the photo is sent.
