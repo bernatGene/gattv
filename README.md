@@ -50,13 +50,21 @@ uv run gattv motion-test
 ## Bot Commands
 
 - `/start` checks that the bot is running.
-- `/status` shows whether monitoring is armed.
-- `/arm` enables armed state.
-- `/disarm` disables armed state.
+- `/status` shows whether monitoring is armed, current motion state, and your notification setting.
+- `/arm` starts motion detection.
+- `/disarm` stops motion detection and releases the camera.
+- `/notify_on` enables motion notifications for your chat.
+- `/notify_off` disables motion notifications for your chat.
 - `/photo` captures and sends one camera photo.
 - `/video` records and sends one short MP4 clip.
 
 Only user IDs listed in `gattv.toml` are allowed to control the bot.
+Motion notifications are sent to allowed chats that have interacted with the bot
+and explicitly enabled notifications with `/notify_on`. Notification settings
+are in-memory, default to off, and reset when the server restarts.
+
+The server terminal shows a live status panel with motion state, enabled notify
+chats, current task, last Telegram message time, and last motion time.
 
 On macOS, the terminal app running `gattv` may need camera permission in System
 Settings.
@@ -70,3 +78,21 @@ bundled ffmpeg binary, sends it inline in Telegram, then deletes the temp files.
 `motion-test` opens the camera and prints live motion detection state until
 `Ctrl+C`. Tune the `[motion]` values in `gattv.toml` until cat-sized movement is
 detected without too much noise.
+
+By default, motion sends text notifications only:
+
+```toml
+[motion]
+mode = "notify"
+```
+
+To send motion-triggered MP4 clips instead, set:
+
+```toml
+[motion]
+mode = "clip"
+```
+
+Clip mode uses `motion.pre_seconds` seconds before detection and
+`motion.post_seconds` seconds after detection, then sends the encoded MP4 to
+chats that have enabled notifications with `/notify_on`.

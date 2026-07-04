@@ -12,11 +12,12 @@
 - Motion config exists in `src/gattv/config.py`, `gattv.example.toml`, and `README.md`.
 - `uv run gattv motion-test` runs local motion detection without starting Telegram.
 - On macOS, `uv run gattv server` prevents idle sleep with `caffeinate` while running.
+- `/arm` starts notification-only motion detection, `/disarm` stops it, and `/notify_on`/`/notify_off` control opt-in notifications per chat in memory.
+- `motion.mode = "clip"` records and sends motion-triggered MP4 clips to opted-in chats.
 
 ### In Progress / Next Steps
 
-- Add motion detection in a testable notification-only mode before recording/sending motion clips.
-- Improve CLI runtime status output so the terminal shows current bot/motion state and whether messages are being sent.
+- Tune motion thresholds on the real camera and verify cat-sized movement triggers reliably.
 
 ---
 
@@ -66,9 +67,9 @@ mode = "notify"
 
 ### Server Motion Mode
 
-**Current:** `/arm` only toggles in-memory state; no detection loop exists.
+**Current:** `/arm` starts notification-only motion detection and `/disarm` stops it.
 
-**Next:** Implement a first motion loop that:
+**Done:** Implemented a first motion loop that:
 
 - Opens the camera while armed.
 - Samples frames at `motion.detection_fps`.
@@ -86,15 +87,17 @@ mode = "notify"
 
 ### Bot Workflow
 
-**Current:** Bot owns `armed` state and camera busy lock.
+**Current:** `MotionService` owns armed/motion state; the bot owns known chats and per-chat notification settings.
 
-**Next:** Move armed/motion state into `MotionService`.
+**Done:**
 
 - `/arm` starts the motion loop.
 - `/disarm` stops the motion loop and releases the camera.
 - `/status` reports armed/disarmed plus motion state.
-- `/photo` and `/video` pause detection if armed, wait for camera release, run manual media capture, then resume detection.
-- If motion is actively recording/sending in the later clip mode, manual media commands should report `Camera busy, try again in a moment.`
+- `/notify_on` and `/notify_off` control motion notifications independently per known chat.
+- `/photo` and `/video` pause detection if armed, run manual media capture, then resume detection.
+
+**Next:** If motion is actively recording/sending in the later clip mode, manual media commands should report `Camera busy, try again in a moment.`
 
 **Files:**
 
@@ -103,17 +106,18 @@ mode = "notify"
 
 ### CLI Runtime Status
 
-**Current:** CLI prints a startup Rich panel with static config and then waits while polling.
+**Current:** CLI shows a live Rich status panel while polling.
 
-**Next:** Add a lightweight runtime status display that reports:
+**Done:** Added a lightweight runtime status display that reports:
 
 - Armed/disarmed.
 - Motion state: `stopped`, `watching`, `paused`, `cooldown`, and later `recording`, `encoding`, `sending`.
 - Motion mode: `notify` or `clip`.
-- Whether the service is currently sending a Telegram message/video.
+- Current task, including sending messages, capturing photos, and recording/encoding/sending videos.
 - Last motion event time if available.
+- Last Telegram message time if available.
 
-Keep this simple. A periodic Rich status line or refreshed table is enough; avoid overbuilding a full TUI.
+Kept this as a refreshed Rich panel, not a full TUI.
 
 **Files:**
 
@@ -122,15 +126,15 @@ Keep this simple. A periodic Rich status line or refreshed table is enough; avoi
 
 ### Motion Clip Mode
 
-**Current:** Manual `/video` can record and send MP4 clips.
+**Current:** `motion.mode = "clip"` can record and send MP4 clips.
 
-**Next:** Only after notify mode is tuned, add `mode = "clip"`:
+**Done:** Added `mode = "clip"`:
 
 - Maintain a 5-second full-frame prebuffer.
-- On motion, immediately send `Motion detected. Recording clip...`.
+- On motion, record a clip.
 - Write prebuffer frames plus 5 seconds after detection to temporary AVI.
 - Re-encode to H.264 MP4 with bundled ffmpeg.
-- Send inline video.
+- Send inline video to opted-in chats.
 - Delete temp files.
 - Enter cooldown.
 
@@ -142,16 +146,15 @@ Keep this simple. A periodic Rich status line or refreshed table is enough; avoi
 
 ## Open Questions
 
-- Should `mode` be changed via config only, or should the bot expose commands like `/motion_notify` and `/motion_clip`?
 - Real camera testing showed full-frame dancing around 8000 changed pixels and cat-scale finger movement around 100-200, so the default `changed_pixels` threshold is now 150.
 
 ## Success Criteria
 
-- [ ] `uv run gattv server` shows startup config and live runtime status.
+- [x] `uv run gattv server` shows startup config and live runtime status.
 - [x] `uv run gattv motion-test` runs local detection without starting Telegram.
-- [ ] `/arm` starts notification-only motion detection by default.
+- [x] `/arm` starts notification-only motion detection by default.
 - [ ] A cat-sized movement around 1/10th of the frame triggers `Motion detected.`.
 - [ ] Cooldown prevents repeated message spam.
-- [ ] `/photo` and `/video` work while armed by pausing and resuming detection.
-- [ ] `/disarm` reliably stops detection and releases the camera.
-- [ ] Clip mode can later send 5s pre + 5s post videos inline in Telegram.
+- [x] `/photo` and `/video` work while armed by pausing and resuming detection.
+- [x] `/disarm` reliably stops detection and releases the camera.
+- [x] Clip mode can send 5s pre + 5s post videos inline in Telegram.
