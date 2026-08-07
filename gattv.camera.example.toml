@@ -1,0 +1,24 @@
+# Camera config. Run with: uv run gattv camera --config-path gattv.camera.toml
+listen_host = "127.0.0.1"
+listen_port = 8766
+hub_url = "http://127.0.0.1:8765"
+
+[camera]
+name = "living-room"
+index = 0
+width = 1280
+height = 720
+fps = 15
+warmup_frames = 15
+clip_seconds = 10
+
+[motion]
+pre_seconds = 5
+post_seconds = 5
+cooldown_seconds = 60
+detection_fps = 5
+resize_width = 320
+sensitivity = 25
+changed_pixels = 150
+consecutive_frames = 2
+mode = "notify"

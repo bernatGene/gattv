@@ -1,22 +1,13 @@
+# Hub config. Run with: uv run gattv hub
 [telegram]
 bot_token = "123456789:replace-me"
 allowed_user_ids = [123456789]
 
-[camera]
-index = 0
-width = 1280
-height = 720
-fps = 15
-warmup_frames = 15
-clip_seconds = 10
+[hub]
+default_camera = "living-room"
+listen_host = "0.0.0.0"
+listen_port = 8765
 
-[motion]
-pre_seconds = 5
-post_seconds = 5
-cooldown_seconds = 60
-detection_fps = 5
-resize_width = 320
-sensitivity = 25
-changed_pixels = 150
-consecutive_frames = 2
-mode = "notify"
+[hub.cameras]
+living-room = "http://127.0.0.1:8766"
+kitchen = "http://192.168.1.11:8766"
