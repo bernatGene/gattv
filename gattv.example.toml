@@ -4,10 +4,8 @@ bot_token = "123456789:replace-me"
 allowed_user_ids = [123456789]
 
 [hub]
-default_camera = "living-room"
 listen_host = "0.0.0.0"
 listen_port = 8765
 
 [hub.cameras]
-living-room = "http://127.0.0.1:8766"
-kitchen = "http://192.168.1.11:8766"
+# Cameras are added when their setup is approved at the running hub.

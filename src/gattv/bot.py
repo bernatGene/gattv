@@ -30,7 +30,7 @@ class CatTvBot:
         self,
         config: TelegramConfig,
         cameras: dict[str, CameraClient],
-        default_camera: str,
+        default_camera: str | None,
     ) -> None:
         self.config = config
         self.cameras = cameras
@@ -76,12 +76,15 @@ class CatTvBot:
                 lines.append(f"{name}: {armed}; motion: {state['motion']}")
             except CameraError as error:
                 lines.append(f"{name}: offline ({error})")
-        await self._reply(update, "\n".join(lines))
+        await self._reply(update, "\n".join(lines) or "No cameras configured.")
 
     async def choose_camera(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
         if not await self._authorize(update):
+            return
+        if not self.cameras:
+            await self._reply(update, "No cameras configured.")
             return
         keyboard = [
             [InlineKeyboardButton(name, callback_data=f"camera:{name}")]
@@ -97,6 +100,9 @@ class CatTvBot:
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
         if not await self._authorize(update):
+            return
+        if not self.cameras:
+            await self._reply(update, "No cameras configured.")
             return
         query = update.callback_query
         chat = update.effective_chat
@@ -173,6 +179,9 @@ class CatTvBot:
         if not await self._authorize(update):
             return
         camera = self._camera_for(update)
+        if camera is None:
+            await self._reply(update, "No cameras configured.")
+            return
         await self._reply(update, f"Capturing {kind} from {camera.name}...")
         path: Path | None = None
         try:
@@ -197,12 +206,12 @@ class CatTvBot:
             if path is not None:
                 path.unlink(missing_ok=True)
 
-    def _camera_for(self, update: Update) -> CameraClient:
+    def _camera_for(self, update: Update) -> CameraClient | None:
         chat = update.effective_chat
         name = self.default_camera
         if chat is not None:
             name = self.state.selected_cameras.get(chat.id, name)
-        return self.cameras[name]
+        return self.cameras.get(name) if name is not None else None
 
     async def _authorize(self, update: Update) -> bool:
         user = update.effective_user

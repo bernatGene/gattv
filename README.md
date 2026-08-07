@@ -20,25 +20,30 @@ OpenCV is pinned because newer wheels do not support Monterey Intel Macs.
 ## Hub
 
 ```bash
-cp gattv.example.toml gattv.toml
+uv run gattv config init hub
 uv run gattv hub
 ```
 
-Configure the Telegram credentials, default camera, and camera URLs in
-`gattv.toml`.
+The wizard detects the hub's LAN address and asks for the Telegram credentials.
+The running hub advertises itself over mDNS so camera setup can find it.
 
 ## Cameras
 
 Create a separate config for each camera process:
 
 ```bash
-cp gattv.camera.example.toml gattv.camera.toml
+uv run gattv config init camera --config-path gattv.camera.toml
 uv run gattv camera --config-path gattv.camera.toml
 ```
 
-For a camera on the hub laptop, use `127.0.0.1` for both URLs. For a remote
-camera, set `listen_host = "0.0.0.0"`, set `hub_url` to the hub laptop's LAN
-address, and add the camera's LAN URL to the hub config. Camera names must match.
+Start the hub before running the camera wizard. It discovers hubs on the local
+network, detects the camera laptop's LAN address, writes the config, and asks the
+hub to register the camera. Approve the request in the hub terminal. If mDNS is
+unavailable, enter the hub URL shown by the running hub.
+
+Use `--config-path` to create multiple configs. Existing files are never
+overwritten without confirmation. The tracked `gattv.example.toml` and
+`gattv.camera.example.toml` files document manual configuration.
 
 Run one camera process per laptop. On macOS, the terminal may need camera
 permission in System Settings. Both hub and camera commands keep the laptop

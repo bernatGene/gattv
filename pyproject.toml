@@ -12,6 +12,7 @@ dependencies = [
     "rich>=14.0",
     "tomli>=2.0",
     "typer>=0.16",
+    "zeroconf>=0.150.0",
 ]
 
 [project.scripts]
@@ -24,6 +25,8 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "pre-commit>=4.6.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
     "ruff>=0.15.20",
 ]
 

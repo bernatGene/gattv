@@ -37,8 +37,8 @@ class MotionConfig(BaseModel):
 
 
 class HubConfig(BaseModel):
-    cameras: dict[str, str] = Field(min_length=1)
-    default_camera: str = Field(min_length=1)
+    cameras: dict[str, str] = Field(default_factory=dict)
+    default_camera: str | None = None
     listen_host: str = "0.0.0.0"
     listen_port: int = Field(default=8765, ge=1, le=65535)
 
