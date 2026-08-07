@@ -1,10 +1,9 @@
-import asyncio
 from collections.abc import Awaitable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Message, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import TelegramError
 from telegram.ext import (
     Application,
@@ -14,8 +13,8 @@ from telegram.ext import (
 )
 
 from gattv.camera import CameraError
+from gattv.camera_client import CameraClient
 from gattv.config import TelegramConfig
-from gattv.nodes import CameraNode, CameraNodeStatus
 
 
 @dataclass
@@ -30,11 +29,9 @@ class CatTvBot:
     def __init__(
         self,
         config: TelegramConfig,
-        cameras: dict[str, CameraNode],
-        default_camera: str,
+        cameras: dict[str, CameraClient],
+        default_camera: str | None,
     ) -> None:
-        if default_camera not in cameras:
-            raise ValueError(f"Default camera {default_camera!r} is not configured.")
         self.config = config
         self.cameras = cameras
         self.default_camera = default_camera
@@ -46,236 +43,175 @@ class CatTvBot:
         self.application = application
         application.add_handler(CommandHandler("start", self.start))
         application.add_handler(CommandHandler("status", self.status))
-        application.add_handler(CommandHandler("cameras", self.camera_menu))
+        application.add_handler(CommandHandler("cameras", self.choose_camera))
         application.add_handler(CommandHandler("arm", self.arm))
         application.add_handler(CommandHandler("disarm", self.disarm))
         application.add_handler(CommandHandler("notify_on", self.notify_on))
         application.add_handler(CommandHandler("notify_off", self.notify_off))
         application.add_handler(CommandHandler("photo", self.photo))
         application.add_handler(CommandHandler("video", self.video))
-        application.add_handler(CallbackQueryHandler(self.camera_callback))
+        application.add_handler(
+            CallbackQueryHandler(self.select_camera, pattern="^camera:")
+        )
         application.add_error_handler(self.error_handler)
         return application
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        if not await self._authorize(update):
-            return
-        self._remember_chat(update)
-        await self._reply(
-            update,
-            "gattv is running. Use /cameras to select and control a camera, or use /photo and /video for the selected camera.",
-        )
+        if await self._authorize(update):
+            self._remember_chat(update)
+            await self._reply(
+                update,
+                "gattv is running. Use /cameras to choose a camera, then /photo or /video.",
+            )
 
     async def status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not await self._authorize(update):
             return
         self._remember_chat(update)
-        selected = self._selected_camera_name(update)
-        lines = [f"Selected camera: {selected}"]
-        statuses = await asyncio.gather(
-            *(camera.status() for camera in self.cameras.values()),
-            return_exceptions=True,
-        )
-        for name, status in zip(self.cameras, statuses):
-            if isinstance(status, BaseException):
-                lines.append(f"{name}: offline ({status})")
-            else:
-                armed = "armed" if status.armed else "disarmed"
-                lines.append(f"{name}: {armed}; motion: {status.motion_status}")
-        notify = "on" if self._chat_notify_enabled(update) else "off"
-        lines.append(f"Notifications: {notify}")
-        await self._reply(update, "\n".join(lines))
+        lines = []
+        for name, camera in self.cameras.items():
+            try:
+                state = await camera.status()
+                armed = "armed" if state["armed"] else "disarmed"
+                lines.append(f"{name}: {armed}; motion: {state['motion']}")
+            except CameraError as error:
+                lines.append(f"{name}: offline ({error})")
+        await self._reply(update, "\n".join(lines) or "No cameras configured.")
 
-    async def camera_menu(
+    async def choose_camera(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
         if not await self._authorize(update):
             return
-        self._remember_chat(update)
-        await self._reply_with_markup(
-            update, "Choose a camera:", self._camera_keyboard(update)
-        )
+        if not self.cameras:
+            await self._reply(update, "No cameras configured.")
+            return
+        keyboard = [
+            [InlineKeyboardButton(name, callback_data=f"camera:{name}")]
+            for name in self.cameras
+        ]
+        message = update.effective_message
+        if message is not None:
+            await message.reply_text(
+                "Choose a camera:", reply_markup=InlineKeyboardMarkup(keyboard)
+            )
 
-    async def camera_callback(
+    async def select_camera(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
         if not await self._authorize(update):
+            return
+        if not self.cameras:
+            await self._reply(update, "No cameras configured.")
             return
         query = update.callback_query
-        if query is None or query.data is None:
-            return
-        await query.answer()
-        action, _, value = query.data.partition(":")
         chat = update.effective_chat
-        if action == "select" and chat is not None and value in self.cameras:
-            self.state.selected_cameras[chat.id] = value
-            await query.edit_message_text(
-                f"Selected camera: {value}", reply_markup=self._camera_keyboard(update)
-            )
+        if query is None or query.data is None or chat is None:
             return
-        if action == "photo":
-            await self.photo(update, context)
-        elif action == "video":
-            await self.video(update, context)
-        elif action == "arm":
-            await self.arm(update, context)
-        elif action == "disarm":
-            await self.disarm(update, context)
+        name = query.data.removeprefix("camera:")
+        if name not in self.cameras:
+            await query.answer("Unknown camera.")
+            return
+        self.state.selected_cameras[chat.id] = name
+        await query.answer()
+        await query.edit_message_text(f"Selected camera: {name}")
 
     async def arm(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        if not await self._authorize(update):
-            return
-        self._remember_chat(update)
-        await self._change_all_nodes(update, "arm")
+        await self._run_for_all(update, "arm")
 
     async def disarm(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        if not await self._authorize(update):
-            return
-        self._remember_chat(update)
-        await self._change_all_nodes(update, "disarm")
+        await self._run_for_all(update, "disarm")
 
     async def notify_on(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        if not await self._authorize(update):
-            return
-        self._set_chat_notify(update, True)
-        await self._reply(update, "Motion notifications enabled for this chat.")
+        if await self._authorize(update):
+            self._set_chat_notify(update, True)
+            await self._reply(update, "Motion notifications enabled for this chat.")
 
     async def notify_off(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        if not await self._authorize(update):
-            return
-        self._set_chat_notify(update, False)
-        await self._reply(update, "Motion notifications disabled for this chat.")
+        if await self._authorize(update):
+            self._set_chat_notify(update, False)
+            await self._reply(update, "Motion notifications disabled for this chat.")
 
     async def photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        if not await self._authorize(update):
-            return
-        self._remember_chat(update)
-        name, camera = self._selected_camera(update)
-        await self._reply(update, f"Taking photo from {name}...")
-        await self._capture_and_send(update, name, camera.capture_photo, "photo")
+        await self._send_capture(update, "photo")
 
     async def video(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        await self._send_capture(update, "video")
+
+    async def notify_motion(self, camera_name: str, text: str) -> None:
+        for chat_id, enabled in list(self.state.notify_chats.items()):
+            if enabled and self.application is not None:
+                await self.application.bot.send_message(
+                    chat_id=chat_id, text=f"{camera_name}: {text}"
+                )
+
+    async def send_motion_video(self, camera_name: str, path: Path) -> None:
+        for chat_id, enabled in list(self.state.notify_chats.items()):
+            if enabled and self.application is not None:
+                with path.open("rb") as video_file:
+                    await self.application.bot.send_video(
+                        chat_id=chat_id,
+                        video=video_file,
+                        filename=f"{camera_name}-motion.mp4",
+                        caption=f"Motion: {camera_name}",
+                        supports_streaming=True,
+                    )
+
+    async def _run_for_all(self, update: Update, action: str) -> None:
         if not await self._authorize(update):
             return
-        self._remember_chat(update)
-        name, camera = self._selected_camera(update)
-        await self._reply(
-            update, f"Recording {camera.clip_seconds}s video from {name}..."
-        )
-        await self._capture_and_send(update, name, camera.record_clip, "video")
-
-    async def notify_motion(self, camera_name: str, path: Path | None = None) -> None:
-        if self.application is None:
-            return
-        try:
-            for chat_id, enabled in list(self.state.notify_chats.items()):
-                if not enabled:
-                    continue
-                self.state.current_task = f"sending {camera_name} motion"
-                if path is None:
-                    await self._send_bot_message(
-                        chat_id, f"Motion detected: {camera_name}"
-                    )
-                else:
-                    with path.open("rb") as video_file:
-                        await self._send_bot_video(chat_id, video_file, camera_name)
-        finally:
-            self.state.current_task = "idle"
-
-    async def camera_statuses(self) -> dict[str, CameraNodeStatus | None]:
-        results = await asyncio.gather(
-            *(camera.status() for camera in self.cameras.values()),
-            return_exceptions=True,
-        )
-        return {
-            name: None if isinstance(status, BaseException) else status
-            for name, status in zip(self.cameras, results)
-        }
-
-    async def close(self) -> None:
-        await asyncio.gather(*(camera.close() for camera in self.cameras.values()))
-
-    async def _change_all_nodes(self, update: Update, action: str) -> None:
-        calls = [getattr(camera, action)() for camera in self.cameras.values()]
-        results = await asyncio.gather(*calls, return_exceptions=True)
-        changed = sum(result is True for result in results)
-        failures = [
-            f"{name}: {result}"
-            for name, result in zip(self.cameras, results)
-            if isinstance(result, BaseException)
-        ]
-        message = f"{action.title()}ed {changed} camera(s)."
+        failures = []
+        for camera in self.cameras.values():
+            try:
+                await getattr(camera, action)()
+            except CameraError as error:
+                failures.append(str(error))
+        message = f"All cameras {action}ed."
         if failures:
-            message += "\nFailed: " + "; ".join(failures)
+            message = "Some cameras failed: " + "; ".join(failures)
         await self._reply(update, message)
 
-    async def _capture_and_send(
-        self,
-        update: Update,
-        name: str,
-        capture,
-        media_type: str,
-    ) -> None:
+    async def _send_capture(self, update: Update, kind: str) -> None:
+        if not await self._authorize(update):
+            return
+        camera = self._camera_for(update)
+        if camera is None:
+            await self._reply(update, "No cameras configured.")
+            return
+        await self._reply(update, f"Capturing {kind} from {camera.name}...")
         path: Path | None = None
         try:
-            self.state.current_task = f"capturing {media_type} from {name}"
-            path = await capture()
+            path = await (
+                camera.capture_photo() if kind == "photo" else camera.record_clip()
+            )
             message = update.effective_message
-            if message is None:
-                return
-            with path.open("rb") as media_file:
-                self.state.current_task = f"sending {media_type} from {name}"
-                if media_type == "photo":
-                    await self._send_photo_reply(message, media_file, name)
-                else:
-                    await self._send_video_reply(message, media_file, name)
-        except CameraError as error:
-            await self._reply(update, f"Camera error ({name}): {error}")
+            if message is not None:
+                with path.open("rb") as media:
+                    if kind == "photo":
+                        await message.reply_photo(photo=media, caption=camera.name)
+                    else:
+                        await message.reply_video(
+                            video=media,
+                            filename=f"{camera.name}.mp4",
+                            caption=camera.name,
+                            supports_streaming=True,
+                        )
+        except (CameraError, TelegramError) as error:
+            await self._reply(update, f"Camera error: {error}")
         finally:
-            self.state.current_task = "idle"
             if path is not None:
                 path.unlink(missing_ok=True)
 
-    def _camera_keyboard(self, update: Update) -> InlineKeyboardMarkup:
-        selected = self._selected_camera_name(update)
-        camera_buttons = [
-            InlineKeyboardButton(
-                ("✓ " if name == selected else "") + name,
-                callback_data=f"select:{name}",
-            )
-            for name in self.cameras
-        ]
-        rows = [
-            camera_buttons[index : index + 2]
-            for index in range(0, len(camera_buttons), 2)
-        ]
-        rows.extend(
-            [
-                [
-                    InlineKeyboardButton("Take photo", callback_data="photo:"),
-                    InlineKeyboardButton("Record video", callback_data="video:"),
-                ],
-                [
-                    InlineKeyboardButton("Arm all", callback_data="arm:"),
-                    InlineKeyboardButton("Disarm all", callback_data="disarm:"),
-                ],
-            ]
-        )
-        return InlineKeyboardMarkup(rows)
-
-    def _selected_camera(self, update: Update) -> tuple[str, CameraNode]:
-        name = self._selected_camera_name(update)
-        return name, self.cameras[name]
-
-    def _selected_camera_name(self, update: Update) -> str:
+    def _camera_for(self, update: Update) -> CameraClient | None:
         chat = update.effective_chat
-        if chat is None:
-            return self.default_camera
-        return self.state.selected_cameras.get(chat.id, self.default_camera)
+        name = self.default_camera
+        if chat is not None:
+            name = self.state.selected_cameras.get(chat.id, name)
+        return self.cameras.get(name) if name is not None else None
 
     async def _authorize(self, update: Update) -> bool:
         user = update.effective_user
@@ -289,80 +225,17 @@ class CatTvBot:
         if message is not None:
             await self._send_text_reply(message.reply_text(text))
 
-    async def _reply_with_markup(
-        self, update: Update, text: str, markup: InlineKeyboardMarkup
-    ) -> None:
-        message = update.effective_message
-        if message is not None:
-            await self._send_text_reply(message.reply_text(text, reply_markup=markup))
-
     async def _send_text_reply(self, send: Awaitable[object]) -> None:
-        self.state.current_task = "sending message"
         try:
             await send
             self.state.last_message_at = datetime.now()
         except TelegramError as error:
-            self._log_telegram_error(error)
-        finally:
-            self.state.current_task = "idle"
-
-    async def _send_photo_reply(
-        self, message: Message, file: object, name: str
-    ) -> None:
-        try:
-            await message.reply_photo(photo=file, caption=name)
-            self.state.last_message_at = datetime.now()
-        except TelegramError as error:
-            self._log_telegram_error(error)
-
-    async def _send_video_reply(
-        self, message: Message, file: object, name: str
-    ) -> None:
-        try:
-            await message.reply_video(
-                video=file,
-                filename="gattv-video.mp4",
-                caption=name,
-                supports_streaming=True,
-            )
-            self.state.last_message_at = datetime.now()
-        except TelegramError as error:
-            self._log_telegram_error(error)
-
-    async def _send_bot_message(self, chat_id: int, text: str) -> None:
-        if self.application is None:
-            return
-        try:
-            await self.application.bot.send_message(chat_id=chat_id, text=text)
-            self.state.last_message_at = datetime.now()
-        except TelegramError as error:
-            self._log_telegram_error(error)
-
-    async def _send_bot_video(self, chat_id: int, file: object, name: str) -> None:
-        if self.application is None:
-            return
-        try:
-            await self.application.bot.send_video(
-                chat_id=chat_id,
-                video=file,
-                filename="gattv-motion.mp4",
-                caption=f"Motion detected: {name}",
-                supports_streaming=True,
-            )
-            self.state.last_message_at = datetime.now()
-        except TelegramError as error:
-            self._log_telegram_error(error)
+            print(f"Telegram send failed: {error}")
 
     async def error_handler(
         self, update: object, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        if isinstance(context.error, TelegramError):
-            self._log_telegram_error(context.error)
-            return
-        print(f"Unexpected bot error: {context.error}")
-
-    def _log_telegram_error(self, error: TelegramError) -> None:
-        print(f"Telegram send failed: {error}")
+        print(f"Bot error: {context.error}")
 
     def _remember_chat(self, update: Update) -> None:
         chat = update.effective_chat
@@ -373,7 +246,3 @@ class CatTvBot:
         chat = update.effective_chat
         if chat is not None:
             self.state.notify_chats[chat.id] = enabled
-
-    def _chat_notify_enabled(self, update: Update) -> bool:
-        chat = update.effective_chat
-        return chat is not None and self.state.notify_chats.get(chat.id, False)
