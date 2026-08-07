@@ -2,19 +2,6 @@
 bot_token = "123456789:replace-me"
 allowed_user_ids = [123456789]
 
-[hub]
-listen_host = "0.0.0.0"
-listen_port = 8765
-shared_token = "replace-with-a-long-random-secret"
-default_camera = "living-room"
-
-[[cameras]]
-name = "living-room"
-
-[[cameras]]
-name = "kitchen"
-url = "http://192.168.1.11:8766"
-
 [camera]
 index = 0
 width = 1280

@@ -2,9 +2,8 @@
 
 A small Python service for monitoring a cat with an old laptop webcam.
 
-Run one Telegram bot on a hub laptop and control local or remote laptop webcams.
-Each camera detects motion locally, so video crosses the network only for photos,
-requested clips, and motion clips.
+Current scope: run a Telegram bot that can be armed/disarmed and can send an
+on-demand camera photo or short video clip.
 
 ## Setup
 
@@ -30,27 +29,14 @@ Create local config:
 cp gattv.example.toml gattv.toml
 ```
 
-Edit `gattv.toml` with your Telegram bot token, allowed Telegram user ID, hub
-address, shared token, and camera list. A camera without a `url` is attached to
-the hub; a camera with a `url` is a remote node.
+Edit `gattv.toml` with your Telegram bot token, allowed Telegram user ID, and
+camera settings.
 
 Run the server:
 
 ```bash
 uv run gattv server
 ```
-
-For each remote laptop, copy and edit its node template:
-
-```bash
-cp gattv.node.example.toml gattv.toml
-uv run gattv node
-```
-
-Set `node.hub_url` to the hub laptop's LAN address and use exactly the same
-`shared_token` on the hub and every node. Set each remote camera's hub-side URL
-to that laptop's LAN address. The HTTP services are intended for a trusted home
-LAN and require a bearer token, but do not provide TLS.
 
 On macOS, the server keeps the laptop awake while it is running by starting the
 built-in `caffeinate` command. It stops sleep prevention when the server exits.
@@ -65,13 +51,12 @@ uv run gattv motion-test
 
 - `/start` checks that the bot is running.
 - `/status` shows whether monitoring is armed, current motion state, and your notification setting.
-- `/cameras` selects a camera and presents photo, video, arm, and disarm buttons.
-- `/arm` starts motion detection on all cameras.
-- `/disarm` stops motion detection on all cameras and releases them.
+- `/arm` starts motion detection.
+- `/disarm` stops motion detection and releases the camera.
 - `/notify_on` enables motion notifications for your chat.
 - `/notify_off` disables motion notifications for your chat.
-- `/photo` captures from the selected camera.
-- `/video` records from the selected camera.
+- `/photo` captures and sends one camera photo.
+- `/video` records and sends one short MP4 clip.
 
 Only user IDs listed in `gattv.toml` are allowed to control the bot.
 Motion notifications are sent to allowed chats that have interacted with the bot
@@ -80,11 +65,6 @@ are in-memory, default to off, and reset when the server restarts.
 
 The server terminal shows a live status panel with motion state, enabled notify
 chats, current task, last Telegram message time, and last motion time.
-
-Camera selection is stored in memory per chat and resets to
-`hub.default_camera` when the server restarts. Motion notifications include the
-camera name. If a node is unavailable, `/status` reports it as offline while the
-other cameras continue working.
 
 On macOS, the terminal app running `gattv` may need camera permission in System
 Settings.
