@@ -1,19 +1,9 @@
-[telegram]
-bot_token = "123456789:replace-me"
-allowed_user_ids = [123456789]
-
-[hub]
-listen_host = "0.0.0.0"
-listen_port = 8765
-shared_token = "replace-with-a-long-random-secret"
-default_camera = "living-room"
-
-[[cameras]]
-name = "living-room"
-
-[[cameras]]
+[node]
 name = "kitchen"
-url = "http://192.168.1.11:8766"
+listen_host = "0.0.0.0"
+listen_port = 8766
+hub_url = "http://192.168.1.10:8765"
+shared_token = "replace-with-a-long-random-secret"
 
 [camera]
 index = 0

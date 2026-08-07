@@ -23,6 +23,26 @@ class CameraConfig(BaseModel):
     clip_seconds: int = Field(default=10, gt=0)
 
 
+class HubConfig(BaseModel):
+    listen_host: str = "0.0.0.0"
+    listen_port: int = Field(default=8765, ge=1, le=65535)
+    shared_token: str = Field(min_length=16)
+    default_camera: str = Field(min_length=1)
+
+
+class CameraTargetConfig(BaseModel):
+    name: str = Field(min_length=1)
+    url: str | None = None
+
+
+class NodeConfig(BaseModel):
+    name: str = Field(min_length=1)
+    listen_host: str = "0.0.0.0"
+    listen_port: int = Field(default=8766, ge=1, le=65535)
+    hub_url: str = Field(min_length=1)
+    shared_token: str = Field(min_length=16)
+
+
 class MotionConfig(BaseModel):
     pre_seconds: int = Field(default=5, ge=0)
     post_seconds: int = Field(default=5, ge=0)
@@ -36,7 +56,10 @@ class MotionConfig(BaseModel):
 
 
 class Config(BaseModel):
-    telegram: TelegramConfig
+    telegram: TelegramConfig | None = None
+    hub: HubConfig | None = None
+    cameras: list[CameraTargetConfig] = Field(default_factory=list)
+    node: NodeConfig | None = None
     camera: CameraConfig = Field(default_factory=CameraConfig)
     motion: MotionConfig = Field(default_factory=MotionConfig)
 
