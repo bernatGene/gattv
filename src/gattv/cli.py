@@ -50,10 +50,14 @@ def camera(config_path: Path = DEFAULT_CAMERA_CONFIG_PATH) -> None:
 
 
 @app.command("test-hw")
-def test_hw(config_path: Path = DEFAULT_CAMERA_CONFIG_PATH) -> None:
-    """Test whether the camera exposes native MJPEG packets."""
+def test_hw(
+    config_path: Path = DEFAULT_CAMERA_CONFIG_PATH,
+    seconds: int = typer.Option(5, min=1, max=30),
+) -> None:
+    """Benchmark camera capture and rolling-buffer options."""
     config = _load_config(config_path, load_camera_config)
-    if not test_camera_hardware(config.camera, console):
+    buffer_seconds = config.motion.pre_seconds + config.motion.post_seconds
+    if not test_camera_hardware(config.camera, buffer_seconds, seconds, console):
         raise typer.Exit(1)
 
 

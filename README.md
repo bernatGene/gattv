@@ -50,15 +50,16 @@ Run one camera process per laptop. On macOS, the terminal may need camera
 permission in System Settings. Both hub and camera commands keep the laptop
 awake with `caffeinate` while running.
 
-Test whether the configured camera exposes native MJPEG packets suitable for a
-low-overhead compressed rolling buffer:
+Benchmark the configured camera and compare rolling-buffer options:
 
 ```bash
-uv run gattv test-hw
+uv run gattv test-hw --seconds 5
 ```
 
-The command opens the camera for one frame. On macOS, the terminal may request
-camera permission. Use `--config-path` to test a non-default camera config.
+The command samples the camera without writing video to disk and reports its
+actual stream format, packet rate, capture CPU usage, and estimated rolling
+buffer memory. On macOS, the terminal may request camera permission. Use
+`--config-path` to test a non-default camera config.
 
 ## Bot Commands
 
