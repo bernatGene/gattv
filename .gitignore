@@ -1,4 +1,6 @@
 gattv.toml
+gattv.camera.toml
+gattv.original.toml
 clips/
 *.mp4
 *.avi

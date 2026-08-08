@@ -6,7 +6,8 @@ import tomli as tomllib
 from pydantic import BaseModel, Field
 
 
-DEFAULT_CONFIG_PATH = Path("gattv.toml")
+DEFAULT_HUB_CONFIG_PATH = Path("gattv.toml")
+DEFAULT_CAMERA_CONFIG_PATH = Path("gattv.camera.toml")
 
 
 class TelegramConfig(BaseModel):
@@ -61,9 +62,9 @@ def _load_data(path: Path) -> dict[str, object]:
         return tomllib.load(config_file)
 
 
-def load_hub_config(path: Path = DEFAULT_CONFIG_PATH) -> HubServerConfig:
+def load_hub_config(path: Path = DEFAULT_HUB_CONFIG_PATH) -> HubServerConfig:
     return HubServerConfig.model_validate(_load_data(path))
 
 
-def load_camera_config(path: Path = DEFAULT_CONFIG_PATH) -> CameraServerConfig:
+def load_camera_config(path: Path = DEFAULT_CAMERA_CONFIG_PATH) -> CameraServerConfig:
     return CameraServerConfig.model_validate(_load_data(path))

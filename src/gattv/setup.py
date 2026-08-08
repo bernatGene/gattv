@@ -91,9 +91,8 @@ mode = "{motion.mode}"
     _atomic_write(path, content)
 
 
-def advertise_hub(address: str, port: int) -> tuple[Zeroconf, ServiceInfo]:
-    zeroconf = Zeroconf(ip_version=IPVersion.V4Only)
-    info = ServiceInfo(
+def hub_service_info(address: str, port: int) -> ServiceInfo:
+    return ServiceInfo(
         SERVICE_TYPE,
         f"gattv hub.{SERVICE_TYPE}",
         addresses=[socket.inet_aton(address)],
@@ -101,8 +100,6 @@ def advertise_hub(address: str, port: int) -> tuple[Zeroconf, ServiceInfo]:
         properties={"path": "/"},
         server=f"{socket.gethostname()}.local.",
     )
-    zeroconf.register_service(info)
-    return zeroconf, info
 
 
 def discover_hubs(timeout: float = 3.0) -> list[DiscoveredHub]:

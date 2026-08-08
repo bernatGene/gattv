@@ -48,6 +48,10 @@ class ConfigWizard:
         name = typer.prompt("Camera name", default=socket.gethostname().split(".")[0])
         index = typer.prompt("Webcam index", default=0, type=int)
         port = typer.prompt("Camera port", default=8766, type=int)
+        motion_mode = typer.prompt("Motion mode (notify or clip)", default="clip")
+        if motion_mode not in {"notify", "clip"}:
+            self.console.print("[bold red]Motion mode must be 'notify' or 'clip'.[/]")
+            raise typer.Exit(1)
         hub_url = typer.prompt("Hub URL", default=self._suggest_hub_url())
         config = CameraServerConfig.model_validate(
             {
@@ -55,6 +59,7 @@ class ConfigWizard:
                 "listen_port": port,
                 "hub_url": hub_url,
                 "camera": {"name": name, "index": index},
+                "motion": {"mode": motion_mode},
             }
         )
         write_camera_config(config_path, config)

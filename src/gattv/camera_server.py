@@ -80,8 +80,19 @@ class CameraServer:
                 else self.camera.record_clip
             )
             path = await asyncio.to_thread(operation)
-            response = web.FileResponse(path)
+            response = web.StreamResponse(
+                headers={
+                    "Content-Length": str(path.stat().st_size),
+                    "Content-Disposition": (
+                        f'attachment; filename="{self.config.camera.name}.{_suffix(kind)}"'
+                    ),
+                }
+            )
+            response.content_type = "image/jpeg" if kind == "photo" else "video/mp4"
             await response.prepare(request)
+            with path.open("rb") as media:
+                while chunk := await asyncio.to_thread(media.read, 64 * 1024):
+                    await response.write(chunk)
             await response.write_eof()
             return response
         except CameraError as error:
@@ -111,3 +122,7 @@ class CameraServer:
                         print(f"Hub rejected motion event: {await response.text()}")
         except aiohttp.ClientError as error:
             print(f"Could not send motion event to hub: {error}")
+
+
+def _suffix(kind: str) -> str:
+    return "jpg" if kind == "photo" else "mp4"

@@ -1,4 +1,4 @@
-# Camera config. Run with: uv run gattv camera --config-path gattv.camera.toml
+# Camera config. Run with: uv run gattv camera
 listen_host = "127.0.0.1"
 listen_port = 8766
 hub_url = "http://127.0.0.1:8765"
@@ -21,4 +21,4 @@ resize_width = 320
 sensitivity = 25
 changed_pixels = 150
 consecutive_frames = 2
-mode = "notify"
+mode = "clip"

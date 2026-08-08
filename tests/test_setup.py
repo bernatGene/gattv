@@ -12,7 +12,12 @@ from gattv.config import (
     load_hub_config,
 )
 from gattv.setup import SERVICE_TYPE, CameraRegistration, _HubListener
-from gattv.setup import local_ip, write_camera_config, write_hub_config
+from gattv.setup import (
+    hub_service_info,
+    local_ip,
+    write_camera_config,
+    write_hub_config,
+)
 
 
 def test_hub_config_round_trip(tmp_path: Path) -> None:
@@ -86,6 +91,14 @@ def test_hub_listener_builds_url() -> None:
     assert listener.hubs[f"Home.{SERVICE_TYPE}"].name == "Home"
     assert listener.hubs[f"Home.{SERVICE_TYPE}"].url == "http://192.168.1.10:8765"
     info.parsed_scoped_addresses.assert_called_once_with(IPVersion.V4Only)
+
+
+def test_hub_service_info_uses_address_and_port() -> None:
+    info = hub_service_info("192.168.1.10", 9000)
+
+    assert info.parsed_addresses() == ["192.168.1.10"]
+    assert info.port == 9000
+    assert info.type == SERVICE_TYPE
 
 
 def test_registration_rejects_non_http_url() -> None:

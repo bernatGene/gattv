@@ -35,7 +35,10 @@ class CatTvBot:
         self.config = config
         self.cameras = cameras
         self.default_camera = default_camera
-        self.state = BotState(notify_chats={}, selected_cameras={})
+        self.state = BotState(
+            notify_chats={user_id: True for user_id in config.allowed_user_ids},
+            selected_cameras={},
+        )
         self.application: Application | None = None
 
     def build_application(self) -> Application:
@@ -142,14 +145,18 @@ class CatTvBot:
     async def video(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await self._send_capture(update, "video")
 
-    async def notify_motion(self, camera_name: str, text: str) -> None:
+    async def notify_motion(self, camera_name: str, text: str) -> int:
+        sent = 0
         for chat_id, enabled in list(self.state.notify_chats.items()):
             if enabled and self.application is not None:
                 await self.application.bot.send_message(
                     chat_id=chat_id, text=f"{camera_name}: {text}"
                 )
+                sent += 1
+        return sent
 
-    async def send_motion_video(self, camera_name: str, path: Path) -> None:
+    async def send_motion_video(self, camera_name: str, path: Path) -> int:
+        sent = 0
         for chat_id, enabled in list(self.state.notify_chats.items()):
             if enabled and self.application is not None:
                 with path.open("rb") as video_file:
@@ -160,6 +167,8 @@ class CatTvBot:
                         caption=f"Motion: {camera_name}",
                         supports_streaming=True,
                     )
+                sent += 1
+        return sent
 
     async def _run_for_all(self, update: Update, action: str) -> None:
         if not await self._authorize(update):

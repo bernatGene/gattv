@@ -43,6 +43,7 @@ class MotionService:
         self.notify = notify
         self.send_video = send_video
         self.state = MotionState()
+        self.state_changed = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
         self._stop_requested = asyncio.Event()
 
@@ -50,7 +51,7 @@ class MotionService:
         if self.state.armed:
             return False
 
-        self.state.armed = True
+        self._update_state(armed=True)
         self._start_task()
         return True
 
@@ -58,7 +59,7 @@ class MotionService:
         if not self.state.armed:
             return False
 
-        self.state.armed = False
+        self._update_state(armed=False)
         await self._stop_task("stopped")
         return True
 
@@ -75,12 +76,12 @@ class MotionService:
 
     def _start_task(self) -> None:
         self._stop_requested = asyncio.Event()
-        self.state.status = "watching"
+        self._update_state(status="watching")
         self._task = asyncio.create_task(self._run())
 
     async def _stop_task(self, status: str) -> None:
         if self._task is None:
-            self.state.status = status
+            self._update_state(status=status)
             return
 
         self._stop_requested.set()
@@ -89,7 +90,7 @@ class MotionService:
         except Exception as error:
             print(f"Motion task stopped after error: {error}")
         self._task = None
-        self.state.status = status
+        self._update_state(status=status)
 
     async def _run(self) -> None:
         samples: Iterator[MotionSample] | None = None
@@ -105,12 +106,10 @@ class MotionService:
                 samples = motion_samples(self.camera, self.config)
                 await self._run_notify_mode(samples)
         except CameraError as error:
-            self.state.armed = False
-            self.state.status = "stopped"
+            self._update_state(armed=False, status="stopped")
             await self.notify(f"Motion detection stopped: {error}")
         except Exception as error:
-            self.state.armed = False
-            self.state.status = "stopped"
+            self._update_state(armed=False, status="stopped")
             print(f"Motion detection stopped unexpectedly: {error}")
         finally:
             if samples is not None:
@@ -118,24 +117,35 @@ class MotionService:
 
     async def _run_notify_mode(self, samples: Iterator[MotionSample]) -> None:
         while not self._stop_requested.is_set():
-            self.state.status = "watching"
+            self._update_state(status="watching")
             sample = await asyncio.to_thread(next, samples)
             if sample.detected:
-                self.state.last_motion_at = datetime.now()
-                self.state.status = "cooldown"
+                self._update_state(last_motion_at=datetime.now(), status="cooldown")
                 await self.notify("Motion detected.")
                 await self._wait_for_cooldown_or_stop()
 
     async def _run_clip_mode(self) -> None:
+        loop = asyncio.get_running_loop()
+
+        def set_status(status: str) -> None:
+            loop.call_soon_threadsafe(self._set_status, status)
+
+        def notify_detected() -> None:
+            notification = asyncio.run_coroutine_threadsafe(
+                self._notify_clip_detection(), loop
+            )
+            notification.result()
+
         clips = motion_clips(
             self.camera,
             self.config,
             self._stop_requested.is_set,
-            self._set_status,
+            set_status,
+            notify_detected,
         )
         try:
             while not self._stop_requested.is_set():
-                self.state.status = "watching"
+                self._update_state(status="watching")
                 path = await asyncio.to_thread(_next_clip, clips)
                 if path is None:
                     return
@@ -143,17 +153,20 @@ class MotionService:
                     path.unlink(missing_ok=True)
                     return
 
-                self.state.last_motion_at = datetime.now()
-                self.state.status = "sending"
+                self._update_state(status="sending")
                 try:
                     await self.send_video(path)
                 finally:
                     path.unlink(missing_ok=True)
 
-                self.state.status = "cooldown"
+                self._update_state(status="cooldown")
                 await self._wait_for_cooldown_or_stop()
         finally:
             clips.close()
+
+    async def _notify_clip_detection(self) -> None:
+        self._update_state(last_motion_at=datetime.now())
+        await self.notify("Motion detected. Recording video...")
 
     async def _wait_for_cooldown_or_stop(self) -> None:
         try:
@@ -164,7 +177,27 @@ class MotionService:
             pass
 
     def _set_status(self, status: str) -> None:
-        self.state.status = status
+        self._update_state(status=status)
+
+    def _update_state(
+        self,
+        *,
+        armed: bool | None = None,
+        status: str | None = None,
+        last_motion_at: datetime | None = None,
+    ) -> None:
+        changed = False
+        if armed is not None and self.state.armed != armed:
+            self.state.armed = armed
+            changed = True
+        if status is not None and self.state.status != status:
+            self.state.status = status
+            changed = True
+        if last_motion_at is not None and self.state.last_motion_at != last_motion_at:
+            self.state.last_motion_at = last_motion_at
+            changed = True
+        if changed:
+            self.state_changed.set()
 
 
 def motion_samples(
@@ -215,6 +248,7 @@ def motion_clips(
     config: MotionConfig,
     stop_requested: Callable[[], bool],
     set_status: Callable[[str], None] | None = None,
+    notify_detected: Callable[[], None] | None = None,
 ) -> Iterator[Path]:
     capture = camera._open_capture()
     raw_path = None
@@ -248,6 +282,8 @@ def motion_clips(
                 next_detection_at = now + detection_interval
 
                 if sample.detected:
+                    if notify_detected is not None:
+                        notify_detected()
                     if set_status is not None:
                         set_status("recording")
                     raw_path, output_path = _record_motion_clip(

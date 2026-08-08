@@ -6,12 +6,13 @@ from aiohttp import web
 from pydantic import ValidationError
 from rich.console import Console
 import typer
+from zeroconf import IPVersion, Zeroconf
 
 from gattv.bot import CatTvBot
 from gattv.camera_client import CameraClient
 from gattv.config import HubServerConfig
 from gattv.runtime import start_caffeinate, stop_caffeinate
-from gattv.setup import CameraRegistration, advertise_hub, local_ip, write_hub_config
+from gattv.setup import CameraRegistration, hub_service_info, local_ip, write_hub_config
 
 
 class HubServer:
@@ -42,7 +43,9 @@ class HubServer:
         await telegram.updater.start_polling()
         await site.start()
         address = local_ip()
-        zeroconf, service_info = advertise_hub(address, self.config.hub.listen_port)
+        zeroconf = Zeroconf(ip_version=IPVersion.V4Only)
+        service_info = hub_service_info(address, self.config.hub.listen_port)
+        await zeroconf.async_register_service(service_info)
         self.console.print(
             f"[bold green]gattv hub running[/] with {len(self.cameras)} camera(s); "
             "Ctrl+C to stop"
@@ -51,7 +54,7 @@ class HubServer:
         try:
             await asyncio.Event().wait()
         finally:
-            zeroconf.unregister_service(service_info)
+            await zeroconf.async_unregister_service(service_info)
             zeroconf.close()
             await runner.cleanup()
             await telegram.updater.stop()
@@ -104,9 +107,14 @@ class HubServer:
             await self._receive_motion_video(request, camera_name)
         else:
             data = await request.post()
-            await self.bot.notify_motion(
-                camera_name, str(data.get("text", "Motion detected."))
-            )
+            text = str(data.get("text", "Motion detected."))
+            self.console.print(f"[bold yellow]{camera_name}:[/] {text}")
+            sent = await self.bot.notify_motion(camera_name, text)
+            if sent == 0:
+                self.console.print(
+                    "[yellow]No Telegram chats have motion notifications enabled; "
+                    "send /notify_on to the bot.[/]"
+                )
         return web.Response()
 
     async def _receive_motion_video(
@@ -123,6 +131,18 @@ class HubServer:
             while chunk := await part.read_chunk():
                 file.write(chunk)
         try:
-            await self.bot.send_motion_video(camera_name, path)
+            self.console.print(
+                f"[bold yellow]{camera_name}:[/] Motion video received; sending to Telegram..."
+            )
+            sent = await self.bot.send_motion_video(camera_name, path)
+            if sent == 0:
+                self.console.print(
+                    "[yellow]Motion video not sent: no Telegram chats have motion "
+                    "notifications enabled.[/]"
+                )
+            else:
+                self.console.print(
+                    f"[green]{camera_name}: Motion video sent to {sent} chat(s).[/]"
+                )
         finally:
             path.unlink(missing_ok=True)
