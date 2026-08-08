@@ -26,3 +26,10 @@ def test_init_camera_uses_camera_config_default() -> None:
 
     assert result.exit_code == 0
     assert "gattv.camera.toml" in result.stdout
+
+
+def test_hardware_test_uses_camera_config_default() -> None:
+    result = runner.invoke(app, ["test-hw", "--help"])
+
+    assert result.exit_code == 0
+    assert "gattv.camera.toml" in result.stdout

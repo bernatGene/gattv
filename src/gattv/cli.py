@@ -13,6 +13,7 @@ from gattv.config import (
     load_hub_config,
 )
 from gattv.config_wizard import ConfigWizard
+from gattv.hardware import test_camera_hardware
 from gattv.hub_server import HubServer
 
 
@@ -46,6 +47,14 @@ def camera(config_path: Path = DEFAULT_CAMERA_CONFIG_PATH) -> None:
     """Run one camera process."""
     config = _load_config(config_path, load_camera_config)
     asyncio.run(CameraRuntime(config, config_path, console).run())
+
+
+@app.command("test-hw")
+def test_hw(config_path: Path = DEFAULT_CAMERA_CONFIG_PATH) -> None:
+    """Test whether the camera exposes native MJPEG packets."""
+    config = _load_config(config_path, load_camera_config)
+    if not test_camera_hardware(config.camera, console):
+        raise typer.Exit(1)
 
 
 @config_app.command("init-hub")
