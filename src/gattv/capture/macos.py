@@ -10,6 +10,11 @@ from gattv.capture.models import CapturedUnit
 from gattv.config import CameraConfig
 
 
+_OPEN_ATTEMPTS = 10
+_OPEN_RETRY_SECONDS = 0.1
+_DEMUX_RETRY_SECONDS = 0.01
+
+
 class MacOsCaptureSource:
     def __init__(self, camera: CameraConfig) -> None:
         self._camera = camera
@@ -17,19 +22,11 @@ class MacOsCaptureSource:
 
     def units(self) -> Iterator[CapturedUnit]:
         try:
-            self._container = av.open(
-                f"{self._camera.index}:none",
-                format="avfoundation",
-                options={
-                    "framerate": "30",
-                    "pixel_format": "uyvy422",
-                    "video_size": f"{self._camera.width}x{self._camera.height}",
-                },
-            )
+            self._container = _open_camera(self._camera)
             stream = self._container.streams.video[0]
             sequence = 0
             warmup_remaining = self._camera.warmup_frames
-            for packet in self._container.demux(stream):
+            for packet in _packets(self._container, stream):
                 if packet.size == 0:
                     continue
                 if warmup_remaining:
@@ -77,3 +74,32 @@ class MacOsCaptureSource:
         self._container = None
         if container is not None:
             container.close()
+
+
+def _open_camera(camera: CameraConfig) -> av.container.InputContainer:
+    for attempt in range(_OPEN_ATTEMPTS):
+        try:
+            return av.open(
+                str(camera.index),
+                format="avfoundation",
+                options={
+                    "framerate": "30",
+                    "video_size": f"{camera.width}x{camera.height}",
+                },
+            )
+        except av.BlockingIOError:
+            if attempt == _OPEN_ATTEMPTS - 1:
+                raise
+            time.sleep(_OPEN_RETRY_SECONDS)
+    raise AssertionError("unreachable")
+
+
+def _packets(
+    container: av.container.InputContainer, stream: av.VideoStream
+) -> Iterator[av.Packet]:
+    while True:
+        try:
+            yield from container.demux(stream)
+            return
+        except av.BlockingIOError:
+            time.sleep(_DEMUX_RETRY_SECONDS)

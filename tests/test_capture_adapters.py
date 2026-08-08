@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 from gattv.capture.encoding import encode_clip
-from gattv.capture.macos import MacOsCaptureSource
+from gattv.capture.macos import MacOsCaptureSource, _open_camera, _packets
 from gattv.capture.models import CapturedUnit, CompletedClip
 from gattv.capture.source import create_capture_source
 from gattv.config import CameraConfig
@@ -46,6 +46,47 @@ def test_macos_source_extracts_uyvy_luminance() -> None:
     image = MacOsCaptureSource(CameraConfig(name="cat")).detection_image(unit)
 
     np.testing.assert_array_equal(image, np.array([[20, 40, 60, 80]], dtype=np.uint8))
+
+
+def test_macos_source_retries_transient_avfoundation_open() -> None:
+    container = Mock()
+    transient_error = av.BlockingIOError(35, "Resource temporarily unavailable", "0")
+
+    with (
+        patch(
+            "gattv.capture.macos.av.open", side_effect=[transient_error, container]
+        ) as open_camera,
+        patch("gattv.capture.macos.time.sleep") as sleep,
+    ):
+        result = _open_camera(CameraConfig(name="cat", width=640, height=480))
+
+    assert result is container
+    assert open_camera.call_count == 2
+    assert open_camera.call_args.args == ("0",)
+    assert open_camera.call_args.kwargs == {
+        "format": "avfoundation",
+        "options": {"framerate": "30", "video_size": "640x480"},
+    }
+    sleep.assert_called_once_with(0.1)
+
+
+def test_macos_source_retries_transient_avfoundation_demux() -> None:
+    transient_error = av.BlockingIOError(35, "Resource temporarily unavailable", "0")
+    packet = Mock()
+    container = Mock()
+
+    def blocked_packets():
+        raise transient_error
+        yield
+
+    container.demux.side_effect = [blocked_packets(), iter([packet])]
+
+    with patch("gattv.capture.macos.time.sleep") as sleep:
+        packets = list(_packets(container, Mock()))
+
+    assert packets == [packet]
+    assert container.demux.call_count == 2
+    sleep.assert_called_once_with(0.01)
 
 
 def test_encodes_mjpeg_units_incrementally_to_h264(tmp_path: Path) -> None:
