@@ -59,6 +59,6 @@ awake with `caffeinate` while running.
 - `/arm` and `/disarm` operate on all cameras.
 - `/notify_on` and `/notify_off` control motion notifications for the chat.
 
-Motion notifications default to enabled for allowed users and can be changed
-with `/notify_on` and `/notify_off`. Notification and selected-camera settings
-are in memory and reset when the hub restarts.
+Motion notifications default to off. Each chat can opt in with `/notify_on` and
+pause notifications with `/notify_off`; this choice persists across hub restarts.
+Selected-camera settings remain in memory and reset when the hub restarts.

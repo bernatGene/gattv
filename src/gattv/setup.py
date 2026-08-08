@@ -42,10 +42,14 @@ def write_hub_config(path: Path, config: HubServerConfig) -> None:
     user_ids = ", ".join(
         str(user_id) for user_id in sorted(config.telegram.allowed_user_ids)
     )
+    notify_chat_ids = ", ".join(
+        str(chat_id) for chat_id in sorted(config.telegram.notify_chat_ids)
+    )
     lines = [
         "[telegram]",
         f'bot_token = "{_escape(config.telegram.bot_token)}"',
         f"allowed_user_ids = [{user_ids}]",
+        f"notify_chat_ids = [{notify_chat_ids}]",
         "",
         "[hub]",
         f'listen_host = "{_escape(config.hub.listen_host)}"',

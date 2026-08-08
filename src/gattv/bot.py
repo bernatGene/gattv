@@ -1,4 +1,4 @@
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -31,12 +31,14 @@ class CatTvBot:
         config: TelegramConfig,
         cameras: dict[str, CameraClient],
         default_camera: str | None,
+        save_config: Callable[[], None] | None = None,
     ) -> None:
         self.config = config
         self.cameras = cameras
         self.default_camera = default_camera
+        self.save_config = save_config
         self.state = BotState(
-            notify_chats={user_id: True for user_id in config.allowed_user_ids},
+            notify_chats={chat_id: True for chat_id in config.notify_chat_ids},
             selected_cameras={},
         )
         self.application: Application | None = None
@@ -255,3 +257,9 @@ class CatTvBot:
         chat = update.effective_chat
         if chat is not None:
             self.state.notify_chats[chat.id] = enabled
+            if enabled:
+                self.config.notify_chat_ids.add(chat.id)
+            else:
+                self.config.notify_chat_ids.discard(chat.id)
+            if self.save_config is not None:
+                self.save_config()

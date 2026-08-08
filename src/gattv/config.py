@@ -13,6 +13,7 @@ DEFAULT_CAMERA_CONFIG_PATH = Path("gattv.camera.toml")
 class TelegramConfig(BaseModel):
     bot_token: str = Field(min_length=1)
     allowed_user_ids: set[int]
+    notify_chat_ids: set[int] = Field(default_factory=set)
 
 
 class CameraConfig(BaseModel):

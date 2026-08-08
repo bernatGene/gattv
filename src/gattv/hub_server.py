@@ -25,7 +25,12 @@ class HubServer:
         self.cameras = {
             name: CameraClient(name, url) for name, url in config.hub.cameras.items()
         }
-        self.bot = CatTvBot(config.telegram, self.cameras, config.hub.default_camera)
+        self.bot = CatTvBot(
+            config.telegram,
+            self.cameras,
+            config.hub.default_camera,
+            lambda: write_hub_config(self.config_path, self.config),
+        )
 
     async def run(self) -> None:
         caffeinate = start_caffeinate(self.console)

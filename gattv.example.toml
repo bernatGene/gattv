@@ -2,6 +2,7 @@
 [telegram]
 bot_token = "123456789:replace-me"
 allowed_user_ids = [123456789]
+notify_chat_ids = []
 
 [hub]
 listen_host = "0.0.0.0"

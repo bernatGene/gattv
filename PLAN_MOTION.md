@@ -12,7 +12,7 @@
 - Motion config exists in `src/gattv/config.py`, `gattv.example.toml`, and `README.md`.
 - `uv run gattv motion-test` runs local motion detection without starting Telegram.
 - On macOS, `uv run gattv server` prevents idle sleep with `caffeinate` while running.
-- `/arm` starts notification-only motion detection, `/disarm` stops it, and `/notify_on`/`/notify_off` control opt-in notifications per chat in memory.
+- `/arm` starts notification-only motion detection, `/disarm` stops it, and `/notify_on`/`/notify_off` control persisted opt-in notifications per chat.
 - `motion.mode = "clip"` records and sends motion-triggered MP4 clips to opted-in chats.
 
 ### In Progress / Next Steps
@@ -87,7 +87,7 @@ mode = "notify"
 
 ### Bot Workflow
 
-**Current:** `MotionService` owns armed/motion state; the bot owns known chats and per-chat notification settings.
+**Current:** `MotionService` owns armed/motion state; the bot owns known chats and persisted per-chat notification settings.
 
 **Done:**
 

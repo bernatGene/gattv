@@ -23,7 +23,9 @@ from gattv.setup import (
 def test_hub_config_round_trip(tmp_path: Path) -> None:
     path = tmp_path / "nested" / "hub.toml"
     config = HubServerConfig(
-        telegram=TelegramConfig(bot_token='a"b', allowed_user_ids={4, 2}),
+        telegram=TelegramConfig(
+            bot_token='a"b', allowed_user_ids={4, 2}, notify_chat_ids={8, -9}
+        ),
         hub=HubConfig(
             default_camera="living room",
             cameras={"living room": "http://192.168.1.2:8766"},
