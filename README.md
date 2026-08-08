@@ -69,10 +69,11 @@ uses monotonic timestamps to retain frames at `camera.fps` and analyze motion at
 
 ## Bot Commands
 
-- `/cameras` selects the camera used by `/photo` and `/video`.
+- `/status` and `/cameras` open the camera dashboard. The dashboard reports each
+  camera as armed, disarmed, or unavailable and provides individual controls.
+- Select a camera in its detail view to use it for `/photo` and `/video`.
 - `/photo` captures from the selected camera.
 - `/video` records from the selected camera.
-- `/status` reports all configured cameras.
 - `/arm` and `/disarm` operate on all cameras.
 - `/notify_on` and `/notify_off` control motion notifications for the chat.
 

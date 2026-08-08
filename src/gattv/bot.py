@@ -1,7 +1,9 @@
+import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import TelegramError
@@ -25,6 +27,17 @@ class BotState:
     last_message_at: datetime | None = None
 
 
+@dataclass(frozen=True)
+class CameraSnapshot:
+    name: str
+    armed: bool | None
+    motion: str | None
+    last_motion_at: str | None = None
+
+
+CameraAction = Literal["arm", "disarm"]
+
+
 class CatTvBot:
     def __init__(
         self,
@@ -42,6 +55,8 @@ class CatTvBot:
             selected_cameras={},
         )
         self.application: Application | None = None
+        self._camera_callback_ids: dict[str, str] = {}
+        self._camera_names_by_callback_id: dict[str, str] = {}
 
     def build_application(self) -> Application:
         application = Application.builder().token(self.config.bot_token).build()
@@ -56,70 +71,92 @@ class CatTvBot:
         application.add_handler(CommandHandler("photo", self.photo))
         application.add_handler(CommandHandler("video", self.video))
         application.add_handler(
-            CallbackQueryHandler(self.select_camera, pattern="^camera:")
+            CallbackQueryHandler(self.camera_callback, pattern="^gattv:")
         )
         application.add_error_handler(self.error_handler)
         return application
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        if await self._authorize(update):
-            self._remember_chat(update)
-            await self._reply(
-                update,
-                "gattv is running. Use /cameras to choose a camera, then /photo or /video.",
-            )
+        if not await self._authorize(update):
+            return
+        self._remember_chat(update)
+        await self._show_dashboard(update, "gattv is running.")
 
     async def status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not await self._authorize(update):
             return
         self._remember_chat(update)
-        lines = []
-        for name, camera in self.cameras.items():
-            try:
-                state = await camera.status()
-                armed = "armed" if state["armed"] else "disarmed"
-                lines.append(f"{name}: {armed}; motion: {state['motion']}")
-            except CameraError as error:
-                lines.append(f"{name}: offline ({error})")
-        await self._reply(update, "\n".join(lines) or "No cameras configured.")
+        await self._show_dashboard(update)
 
     async def choose_camera(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
         if not await self._authorize(update):
             return
-        if not self.cameras:
-            await self._reply(update, "No cameras configured.")
-            return
-        keyboard = [
-            [InlineKeyboardButton(name, callback_data=f"camera:{name}")]
-            for name in self.cameras
-        ]
-        message = update.effective_message
-        if message is not None:
-            await message.reply_text(
-                "Choose a camera:", reply_markup=InlineKeyboardMarkup(keyboard)
-            )
+        self._remember_chat(update)
+        await self._show_dashboard(update)
 
-    async def select_camera(
+    async def camera_callback(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
         if not await self._authorize(update):
             return
-        if not self.cameras:
-            await self._reply(update, "No cameras configured.")
-            return
         query = update.callback_query
-        chat = update.effective_chat
-        if query is None or query.data is None or chat is None:
+        if query is None or query.data is None:
             return
-        name = query.data.removeprefix("camera:")
-        if name not in self.cameras:
-            await query.answer("Unknown camera.")
-            return
-        self.state.selected_cameras[chat.id] = name
         await query.answer()
-        await query.edit_message_text(f"Selected camera: {name}")
+        self._remember_chat(update)
+        data = query.data.removeprefix("gattv:")
+        if data == "dashboard":
+            await self._show_dashboard(update)
+            return
+        if data == "notify":
+            chat = update.effective_chat
+            if chat is not None:
+                enabled = not self.state.notify_chats.get(chat.id, False)
+                self._set_chat_notify(update, enabled)
+                notice = f"Notifications {'enabled' if enabled else 'disabled'}."
+                await self._show_dashboard(update, notice)
+            return
+        if data in {"arm-all", "disarm-all"}:
+            action: CameraAction = "arm" if data == "arm-all" else "disarm"
+            successes, failures = await self._change_all(action)
+            await self._show_dashboard(
+                update, self._bulk_result(action, successes, failures)
+            )
+            return
+
+        parts = data.split(":", 1)
+        if len(parts) != 2:
+            await self._show_dashboard(update, "Unknown action.")
+            return
+        action, callback_id = parts
+        name = self._camera_names_by_callback_id.get(callback_id)
+        camera = self.cameras.get(name) if name is not None else None
+        if camera is None:
+            await self._show_dashboard(update, "That camera is no longer available.")
+            return
+        if action == "view":
+            await self._show_camera(update, camera)
+            return
+        if action in {"arm", "disarm"}:
+            notice = None
+            try:
+                await self._change_camera(camera, action)
+            except CameraError:
+                notice = f"Could not {action} {name}: camera unavailable."
+            await self._show_camera(update, camera, notice)
+            return
+        if action == "select":
+            chat = update.effective_chat
+            if chat is not None:
+                self.state.selected_cameras[chat.id] = name
+            await self._show_camera(update, camera, f"Capture camera set to {name}.")
+            return
+        if action in {"photo", "video"}:
+            await self._send_capture(update, action, camera)
+            return
+        await self._show_camera(update, camera, "Unknown action.")
 
     async def arm(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await self._run_for_all(update, "arm")
@@ -175,21 +212,16 @@ class CatTvBot:
     async def _run_for_all(self, update: Update, action: str) -> None:
         if not await self._authorize(update):
             return
-        failures = []
-        for camera in self.cameras.values():
-            try:
-                await getattr(camera, action)()
-            except CameraError as error:
-                failures.append(str(error))
-        message = f"All cameras {action}ed."
-        if failures:
-            message = "Some cameras failed: " + "; ".join(failures)
-        await self._reply(update, message)
+        camera_action: CameraAction = "arm" if action == "arm" else "disarm"
+        successes, failures = await self._change_all(camera_action)
+        await self._reply(update, self._bulk_result(camera_action, successes, failures))
 
-    async def _send_capture(self, update: Update, kind: str) -> None:
+    async def _send_capture(
+        self, update: Update, kind: str, camera: CameraClient | None = None
+    ) -> None:
         if not await self._authorize(update):
             return
-        camera = self._camera_for(update)
+        camera = camera or self._camera_for(update)
         if camera is None:
             await self._reply(update, "No cameras configured.")
             return
@@ -228,8 +260,225 @@ class CatTvBot:
         user = update.effective_user
         if user is not None and user.id in self.config.allowed_user_ids:
             return True
-        await self._reply(update, "Not authorized.")
+        query = update.callback_query
+        if query is not None:
+            await query.answer("Not authorized.", show_alert=True)
+        else:
+            await self._reply(update, "Not authorized.")
         return False
+
+    async def _show_dashboard(self, update: Update, notice: str | None = None) -> None:
+        snapshots = await asyncio.gather(
+            *(
+                self._camera_snapshot(name, camera)
+                for name, camera in self.cameras.items()
+            )
+        )
+        armed = sum(snapshot.armed is True for snapshot in snapshots)
+        disarmed = sum(snapshot.armed is False for snapshot in snapshots)
+        unavailable = sum(snapshot.armed is None for snapshot in snapshots)
+        lines = []
+        if notice:
+            lines.extend([notice, ""])
+        if not snapshots:
+            lines.append("No cameras configured.")
+        else:
+            lines.append(
+                f"Cameras: {armed} armed, {disarmed} disarmed, "
+                f"{unavailable} unavailable"
+            )
+            lines.append("")
+            for snapshot in snapshots:
+                lines.append(self._snapshot_line(snapshot))
+        selected = self._camera_for(update)
+        chat = update.effective_chat
+        notifications = (
+            self.state.notify_chats.get(chat.id, False) if chat is not None else False
+        )
+        if snapshots:
+            lines.extend(
+                [
+                    "",
+                    f"Capture camera: {selected.name if selected else 'none'}",
+                    f"Notifications: {'On' if notifications else 'Off'}",
+                ]
+            )
+
+        keyboard = []
+        for snapshot in snapshots:
+            label = self._snapshot_label(snapshot)
+            callback_id = self._callback_id_for(snapshot.name)
+            keyboard.append(
+                [
+                    InlineKeyboardButton(
+                        f"{snapshot.name}: {label}",
+                        callback_data=f"gattv:view:{callback_id}",
+                    )
+                ]
+            )
+        if snapshots:
+            keyboard.append(
+                [
+                    InlineKeyboardButton("Arm all", callback_data="gattv:arm-all"),
+                    InlineKeyboardButton(
+                        "Disarm all", callback_data="gattv:disarm-all"
+                    ),
+                ]
+            )
+            keyboard.append(
+                [
+                    InlineKeyboardButton(
+                        f"Notifications: {'On' if notifications else 'Off'}",
+                        callback_data="gattv:notify",
+                    ),
+                    InlineKeyboardButton("Refresh", callback_data="gattv:dashboard"),
+                ]
+            )
+        await self._send_panel(update, "\n".join(lines), keyboard)
+
+    async def _show_camera(
+        self,
+        update: Update,
+        camera: CameraClient,
+        notice: str | None = None,
+    ) -> None:
+        snapshot = await self._camera_snapshot(camera.name, camera)
+        lines = []
+        if notice:
+            lines.extend([notice, ""])
+        lines.extend([camera.name, f"State: {self._snapshot_label(snapshot)}"])
+        if snapshot.motion is not None:
+            lines.append(f"Motion: {snapshot.motion}")
+        if snapshot.last_motion_at is not None:
+            lines.append(f"Last motion: {snapshot.last_motion_at}")
+        selected = self._camera_for(update)
+        lines.append(f"Capture camera: {'Yes' if selected is camera else 'No'}")
+        callback_id = self._callback_id_for(camera.name)
+        keyboard = []
+        if snapshot.armed is not None:
+            action = "disarm" if snapshot.armed else "arm"
+            keyboard.append(
+                [
+                    InlineKeyboardButton(
+                        f"{action.title()} {camera.name}",
+                        callback_data=f"gattv:{action}:{callback_id}",
+                    )
+                ]
+            )
+            keyboard.append(
+                [
+                    InlineKeyboardButton(
+                        "Photo", callback_data=f"gattv:photo:{callback_id}"
+                    ),
+                    InlineKeyboardButton(
+                        "Video", callback_data=f"gattv:video:{callback_id}"
+                    ),
+                ]
+            )
+            if selected is not camera:
+                keyboard.append(
+                    [
+                        InlineKeyboardButton(
+                            "Use for capture",
+                            callback_data=f"gattv:select:{callback_id}",
+                        )
+                    ]
+                )
+        else:
+            keyboard.append(
+                [
+                    InlineKeyboardButton(
+                        "Retry", callback_data=f"gattv:view:{callback_id}"
+                    )
+                ]
+            )
+        keyboard.append([InlineKeyboardButton("Back", callback_data="gattv:dashboard")])
+        await self._send_panel(update, "\n".join(lines), keyboard)
+
+    async def _send_panel(
+        self, update: Update, text: str, keyboard: list[list[InlineKeyboardButton]]
+    ) -> None:
+        markup = InlineKeyboardMarkup(keyboard)
+        query = update.callback_query
+        if query is not None:
+            await self._send_text_reply(
+                query.edit_message_text(text=text, reply_markup=markup)
+            )
+            return
+        message = update.effective_message
+        if message is not None:
+            await self._send_text_reply(
+                message.reply_text(text=text, reply_markup=markup)
+            )
+
+    async def _camera_snapshot(self, name: str, camera: CameraClient) -> CameraSnapshot:
+        try:
+            state = await camera.status()
+            if not isinstance(state, dict):
+                raise ValueError("Invalid camera status")
+            armed = state.get("armed")
+            motion = state.get("motion")
+            last_motion_at = state.get("last_motion_at")
+            if type(armed) is not bool or not isinstance(motion, str):
+                raise ValueError("Invalid camera status")
+            if last_motion_at is not None and not isinstance(last_motion_at, str):
+                raise ValueError("Invalid last motion time")
+            return CameraSnapshot(name, armed, motion, last_motion_at)
+        except (CameraError, TypeError, ValueError):
+            return CameraSnapshot(name, None, None)
+
+    async def _change_all(self, action: CameraAction) -> tuple[list[str], list[str]]:
+        successes = []
+        failures = []
+        for name, camera in self.cameras.items():
+            try:
+                await self._change_camera(camera, action)
+                successes.append(name)
+            except CameraError:
+                failures.append(name)
+        return successes, failures
+
+    async def _change_camera(self, camera: CameraClient, action: CameraAction) -> None:
+        if action == "arm":
+            await camera.arm()
+        else:
+            await camera.disarm()
+
+    def _bulk_result(
+        self, action: CameraAction, successes: list[str], failures: list[str]
+    ) -> str:
+        if not successes and not failures:
+            return "No cameras configured."
+        verb = "Armed" if action == "arm" else "Disarmed"
+        if not failures:
+            return f"All cameras {verb.lower()}."
+        lines = []
+        if successes:
+            lines.append(f"{verb}: {', '.join(successes)}")
+        lines.append(f"Unavailable: {', '.join(failures)}")
+        return "\n".join(lines)
+
+    def _callback_id_for(self, name: str) -> str:
+        callback_id = self._camera_callback_ids.get(name)
+        if callback_id is not None:
+            return callback_id
+        callback_id = str(len(self._camera_callback_ids) + 1)
+        self._camera_callback_ids[name] = callback_id
+        self._camera_names_by_callback_id[callback_id] = name
+        return callback_id
+
+    def _snapshot_line(self, snapshot: CameraSnapshot) -> str:
+        if snapshot.armed is None:
+            return f"{snapshot.name}: Unavailable"
+        return (
+            f"{snapshot.name}: {self._snapshot_label(snapshot)}; "
+            f"motion: {snapshot.motion}"
+        )
+
+    def _snapshot_label(self, snapshot: CameraSnapshot) -> str:
+        if snapshot.armed is None:
+            return "Unavailable"
+        return "Armed" if snapshot.armed else "Disarmed"
 
     async def _reply(self, update: Update, text: str) -> None:
         message = update.effective_message
