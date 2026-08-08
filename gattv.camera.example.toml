@@ -10,12 +10,14 @@ width = 1280
 height = 720
 # Retained and output FPS. The camera may negotiate a higher active capture rate.
 fps = 15
+# Clockwise output rotation: 0, 90, 180, or 270.
+rotation = 0
 warmup_frames = 15
 clip_seconds = 10
 
 [motion]
-pre_seconds = 5
-post_seconds = 5
+pre_seconds = 2
+post_seconds = 8
 cooldown_seconds = 60
 detection_fps = 5
 resize_width = 320

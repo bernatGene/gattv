@@ -22,13 +22,14 @@ class CameraConfig(BaseModel):
     width: int = Field(default=1280, gt=0)
     height: int = Field(default=720, gt=0)
     fps: int = Field(default=15, gt=0)
+    rotation: Literal[0, 90, 180, 270] = 0
     warmup_frames: int = Field(default=15, ge=1)
     clip_seconds: int = Field(default=10, gt=0)
 
 
 class MotionConfig(BaseModel):
-    pre_seconds: int = Field(default=5, ge=0)
-    post_seconds: int = Field(default=5, ge=0)
+    pre_seconds: int = Field(default=2, ge=0)
+    post_seconds: int = Field(default=8, ge=0)
     cooldown_seconds: int = Field(default=60, ge=0)
     detection_fps: int = Field(default=5, gt=0)
     resize_width: int = Field(default=320, gt=0)

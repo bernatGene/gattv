@@ -51,7 +51,14 @@ def test_init_camera_writes_and_registers_config(tmp_path: Path) -> None:
         patch("gattv.config_wizard.socket.gethostname", return_value="camera-host"),
         patch(
             "gattv.config_wizard.typer.prompt",
-            side_effect=["kitchen", 2, 9001, "clip", "http://192.168.1.5:9000"],
+            side_effect=[
+                "kitchen",
+                2,
+                90,
+                9001,
+                "clip",
+                "http://192.168.1.5:9000",
+            ],
         ),
         patch.object(wizard, "_suggest_hub_url", return_value="http://hub:8765"),
         patch("gattv.config_wizard.register_camera", registration),
@@ -61,12 +68,25 @@ def test_init_camera_writes_and_registers_config(tmp_path: Path) -> None:
     config = load_camera_config(path)
     assert config.camera.name == "kitchen"
     assert config.camera.index == 2
+    assert config.camera.rotation == 90
     assert config.listen_port == 9001
     assert config.hub_url == "http://192.168.1.5:9000"
     assert config.motion.mode == "clip"
     sent = registration.await_args.args[1]
     assert sent.name == "kitchen"
     assert sent.url == "http://192.168.1.8:9001"
+
+
+def test_init_camera_rejects_invalid_rotation(tmp_path: Path) -> None:
+    wizard = ConfigWizard(Console())
+
+    with (
+        patch("gattv.config_wizard.local_ip", return_value="192.168.1.8"),
+        patch("gattv.config_wizard.socket.gethostname", return_value="camera-host"),
+        patch("gattv.config_wizard.typer.prompt", side_effect=["kitchen", 0, 45]),
+        pytest.raises(typer.Exit),
+    ):
+        wizard.init_camera(tmp_path / "camera.toml")
 
 
 def test_suggest_hub_url_uses_selected_discovery() -> None:

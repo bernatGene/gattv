@@ -115,3 +115,27 @@ def test_encodes_mjpeg_units_incrementally_to_h264(tmp_path: Path) -> None:
         frames = list(output.decode(video=0))
         assert output.streams.video[0].codec_context.name == "h264"
     assert len(frames) == 3
+
+
+def test_rotates_encoded_clip_clockwise(tmp_path: Path) -> None:
+    image = np.zeros((16, 32, 3), dtype=np.uint8)
+    image[:, :16] = 255
+    ok, encoded = cv2.imencode(".jpg", image)
+    assert ok
+    unit = CapturedUnit(
+        sequence=0,
+        captured_at=0,
+        payload=encoded.tobytes(),
+        codec="mjpeg",
+        pixel_format="yuvj420p",
+        width=32,
+        height=16,
+    )
+    output_path = tmp_path / "rotated.mp4"
+
+    encode_clip(CompletedClip(0, 0, 0, (unit,)), output_path, fps=1, rotation=90)
+
+    with av.open(str(output_path)) as output:
+        frame = next(output.decode(video=0)).to_ndarray(format="gray")
+    assert frame.shape == (32, 16)
+    assert frame[:16].mean() > frame[16:].mean()

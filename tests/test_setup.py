@@ -53,7 +53,10 @@ def test_empty_hub_config_round_trip(tmp_path: Path) -> None:
 def test_camera_config_round_trip(tmp_path: Path) -> None:
     path = tmp_path / "camera.toml"
     config = CameraServerConfig.model_validate(
-        {"hub_url": "http://hub:8765", "camera": {"name": "kitchen"}}
+        {
+            "hub_url": "http://hub:8765",
+            "camera": {"name": "kitchen", "rotation": 270},
+        }
     )
 
     write_camera_config(path, config)

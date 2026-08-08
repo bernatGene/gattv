@@ -47,7 +47,7 @@ async def test_clip_notifies_before_sending_video(tmp_path: Path) -> None:
         events.append("video")
 
     camera = Mock()
-    camera.config = CameraConfig(name="cat", fps=2)
+    camera.config = CameraConfig(name="cat", fps=2, rotation=90)
     service = MotionService(
         camera,
         MotionConfig(mode="clip", pre_seconds=0, post_seconds=0, cooldown_seconds=0),
@@ -76,7 +76,8 @@ async def test_clip_notifies_before_sending_video(tmp_path: Path) -> None:
         def close(self) -> None:
             pass
 
-    def encode(clip, output_path: Path, fps: int) -> None:
+    def encode(clip, output_path: Path, fps: int, rotation: int) -> None:
+        assert rotation == 90
         encoded_paths.append(output_path)
         output_path.write_bytes(b"video")
 

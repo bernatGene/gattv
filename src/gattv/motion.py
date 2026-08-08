@@ -245,7 +245,13 @@ class MotionService:
             path = Path(file.name)
         try:
             self._update_state(status="encoding")
-            await asyncio.to_thread(encode_clip, clip, path, self.camera.config.fps)
+            await asyncio.to_thread(
+                encode_clip,
+                clip,
+                path,
+                self.camera.config.fps,
+                self.camera.config.rotation,
+            )
             if self._notification_task is not None:
                 await self._notification_task
                 self._notification_task = None

@@ -47,6 +47,16 @@ class ConfigWizard:
         address = local_ip()
         name = typer.prompt("Camera name", default=socket.gethostname().split(".")[0])
         index = typer.prompt("Webcam index", default=0, type=int)
+        rotation = typer.prompt(
+            "Clockwise video rotation (0, 90, 180, or 270 degrees)",
+            default=0,
+            type=int,
+        )
+        if rotation not in {0, 90, 180, 270}:
+            self.console.print(
+                "[bold red]Video rotation must be 0, 90, 180, or 270.[/]"
+            )
+            raise typer.Exit(1)
         port = typer.prompt("Camera port", default=8766, type=int)
         motion_mode = typer.prompt("Motion mode (notify or clip)", default="clip")
         if motion_mode not in {"notify", "clip"}:
@@ -58,7 +68,7 @@ class ConfigWizard:
                 "listen_host": "0.0.0.0",
                 "listen_port": port,
                 "hub_url": hub_url,
-                "camera": {"name": name, "index": index},
+                "camera": {"name": name, "index": index, "rotation": rotation},
                 "motion": {"mode": motion_mode},
             }
         )

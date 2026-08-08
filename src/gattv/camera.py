@@ -15,6 +15,16 @@ class CameraError(Exception):
     pass
 
 
+def rotate_image(image: np.ndarray, rotation: int) -> np.ndarray:
+    if rotation == 90:
+        return cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+    if rotation == 180:
+        return cv2.rotate(image, cv2.ROTATE_180)
+    if rotation == 270:
+        return cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    return image
+
+
 class CameraService:
     def __init__(self, config: CameraConfig) -> None:
         self.config = config
@@ -22,7 +32,7 @@ class CameraService:
     def capture_photo(self) -> Path:
         capture = self._open_capture()
         try:
-            frame = self._warm_up(capture)
+            frame = rotate_image(self._warm_up(capture), self.config.rotation)
 
             with NamedTemporaryFile(
                 prefix="gattv-photo-", suffix=".jpg", delete=False
@@ -44,7 +54,7 @@ class CameraService:
         raw_path = None
         output_path = None
         try:
-            frame = self._warm_up(capture)
+            frame = rotate_image(self._warm_up(capture), self.config.rotation)
             height, width = frame.shape[:2]
 
             with NamedTemporaryFile(
@@ -68,6 +78,7 @@ class CameraService:
                 if not ok:
                     raise CameraError("Could not read a frame from the camera.")
 
+                frame = rotate_image(frame, self.config.rotation)
                 writer.write(frame)
                 next_frame_at += frame_interval
                 sleep_for = next_frame_at - time.monotonic()

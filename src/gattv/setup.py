@@ -78,6 +78,7 @@ index = {camera.index}
 width = {camera.width}
 height = {camera.height}
 fps = {camera.fps}
+rotation = {camera.rotation}
 warmup_frames = {camera.warmup_frames}
 clip_seconds = {camera.clip_seconds}
 

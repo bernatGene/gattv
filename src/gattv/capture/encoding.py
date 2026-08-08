@@ -4,23 +4,30 @@ from pathlib import Path
 import av
 import numpy as np
 
-from gattv.camera import CameraError
+from gattv.camera import CameraError, rotate_image
 from gattv.capture.models import CapturedUnit, CompletedClip
 
 
-def encode_clip(clip: CompletedClip, output_path: Path, fps: int) -> None:
+def encode_clip(
+    clip: CompletedClip, output_path: Path, fps: int, rotation: int = 0
+) -> None:
     if not clip.units:
         raise CameraError("Could not encode an empty motion clip.")
 
     first = clip.units[0]
+    width, height = (
+        (first.height, first.width)
+        if rotation in {90, 270}
+        else (first.width, first.height)
+    )
     output = None
     try:
         output = av.open(str(output_path), mode="w")
         stream = output.add_stream(
             "libx264",
             rate=fps,
-            width=first.width,
-            height=first.height,
+            width=width,
+            height=height,
             pix_fmt="yuv420p",
             options={"crf": "28", "preset": "veryfast"},
         )
@@ -29,6 +36,9 @@ def encode_clip(clip: CompletedClip, output_path: Path, fps: int) -> None:
         )
         for index, unit in enumerate(clip.units):
             frame = _decode_unit(unit, decoder)
+            if rotation:
+                image = rotate_image(frame.to_ndarray(format="bgr24"), rotation)
+                frame = av.VideoFrame.from_ndarray(image, format="bgr24")
             frame.pts = index
             frame.time_base = Fraction(1, fps)
             for packet in stream.encode(frame):
