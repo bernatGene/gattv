@@ -1,10 +1,15 @@
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
-from gattv.config import MotionConfig
-from gattv.motion import MotionService
+import numpy as np
+
+from gattv.capture import CapturedUnit
+from gattv.camera import CameraError
+from gattv.config import CameraConfig, MotionConfig
+from gattv.motion import MotionDetector, MotionService
 
 
 def _service() -> MotionService:
@@ -31,9 +36,8 @@ def test_unchanged_state_does_not_set_event() -> None:
 
 @pytest.mark.asyncio
 async def test_clip_notifies_before_sending_video(tmp_path: Path) -> None:
-    path = tmp_path / "motion.mp4"
-    path.write_bytes(b"video")
     events: list[str] = []
+    encoded_paths: list[Path] = []
 
     async def notify(text: str) -> None:
         events.append(f"notify:{text}")
@@ -42,22 +46,49 @@ async def test_clip_notifies_before_sending_video(tmp_path: Path) -> None:
         assert video_path.read_bytes() == b"video"
         events.append("video")
 
+    camera = Mock()
+    camera.config = CameraConfig(name="cat", fps=2)
     service = MotionService(
-        Mock(),
-        MotionConfig(mode="clip", cooldown_seconds=0),
+        camera,
+        MotionConfig(mode="clip", pre_seconds=0, post_seconds=0, cooldown_seconds=0),
         Mock(),
         notify,
         send_video,
     )
+    service.state.armed = True
 
-    def clips(camera, config, stop_requested, set_status, notify_detected):
-        notify_detected()
-        set_status("recording")
-        yield path
+    class Source:
+        def units(self) -> Iterator[CapturedUnit]:
+            for sequence, captured_at in enumerate([0.0, 0.5]):
+                yield CapturedUnit(
+                    sequence,
+                    captured_at,
+                    bytes([sequence]),
+                    "mjpeg",
+                    "yuvj422p",
+                    1,
+                    1,
+                )
 
-    with patch("gattv.motion.motion_clips", clips):
-        await service._run_clip_mode()
+        def detection_image(self, unit: CapturedUnit) -> np.ndarray:
+            return np.zeros((1, 1), dtype=np.uint8)
+
+        def close(self) -> None:
+            pass
+
+    def encode(clip, output_path: Path, fps: int) -> None:
+        encoded_paths.append(output_path)
+        output_path.write_bytes(b"video")
+
+    with (
+        patch("gattv.motion.create_capture_source", return_value=Source()),
+        patch("gattv.motion.encode_clip", side_effect=encode),
+        patch.object(MotionDetector, "detect", return_value=True),
+    ):
+        with pytest.raises(CameraError, match="stopped unexpectedly"):
+            await service._run_clip_mode()
 
     assert events == ["notify:Motion detected. Recording video...", "video"]
     assert service.state.last_motion_at is not None
-    assert not path.exists()
+    assert len(encoded_paths) == 1
+    assert not encoded_paths[0].exists()

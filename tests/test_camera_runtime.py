@@ -36,6 +36,7 @@ def test_status_panel_shows_camera_and_motion_state() -> None:
     assert "gattv camera: kitchen" in rendered
     assert "http://192.168.1.8:8766" in rendered
     assert "http://192.168.1.5:8765" in rendered
+    assert "Recording" in rendered
     assert "index 1, 1280x720 @ 15 fps" in rendered
     assert "armed; watching" in rendered
     assert "clip" in rendered

@@ -61,6 +61,11 @@ actual stream format, packet rate, capture CPU usage, and estimated rolling
 buffer memory. On macOS, the terminal may request camera permission. Use
 `--config-path` to test a non-default camera config.
 
+`camera.fps` is the retained and output video rate, not necessarily the active
+camera rate. Motion clip capture continuously consumes the negotiated stream and
+uses monotonic timestamps to retain frames at `camera.fps` and analyze motion at
+`motion.detection_fps`. Use `test-hw` to inspect the active camera mode.
+
 ## Bot Commands
 
 - `/cameras` selects the camera used by `/photo` and `/video`.

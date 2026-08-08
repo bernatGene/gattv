@@ -8,6 +8,7 @@ name = "living-room"
 index = 0
 width = 1280
 height = 720
+# Retained and output FPS. The camera may negotiate a higher active capture rate.
 fps = 15
 warmup_frames = 15
 clip_seconds = 10

@@ -6,3 +6,4 @@ clips/
 *.avi
 __pycache__/
 .venv/
+PLAN*.md

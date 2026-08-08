@@ -58,7 +58,7 @@ class CameraRuntime:
         table.add_row("URL", f"http://{self.address}:{self.config.listen_port}")
         table.add_row("Hub", self.config.hub_url)
         table.add_row(
-            "Capture",
+            "Recording",
             f"index {camera.index}, {camera.width}x{camera.height} @ {camera.fps} fps",
         )
         table.add_row(
