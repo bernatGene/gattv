@@ -47,8 +47,9 @@ overwritten without confirmation. The tracked `gattv.example.toml` and
 `gattv.camera.example.toml` files document manual configuration.
 
 Run one camera process per laptop. On macOS, the terminal may need camera
-permission in System Settings. Both hub and camera commands keep the laptop
-awake with `caffeinate` while running.
+permission in System Settings. Both hub and camera commands keep macOS awake
+with `caffeinate` while running. On Linux, the camera command uses
+`systemd-inhibit` to prevent idle and system sleep while it runs.
 
 Benchmark the configured camera and compare rolling-buffer options:
 

@@ -10,7 +10,12 @@ from rich.table import Table
 
 from gattv.camera_server import CameraServer
 from gattv.config import CameraServerConfig
-from gattv.runtime import start_caffeinate, stop_caffeinate
+from gattv.runtime import (
+    start_caffeinate,
+    start_systemd_inhibit,
+    stop_caffeinate,
+    stop_systemd_inhibit,
+)
 from gattv.setup import local_ip
 
 
@@ -26,6 +31,7 @@ class CameraRuntime:
 
     async def run(self) -> None:
         caffeinate = start_caffeinate(self.console)
+        systemd_inhibit = start_systemd_inhibit(self.console)
         runner = web.AppRunner(self.server.build_application())
         await runner.setup()
         site = web.TCPSite(runner, self.config.listen_host, self.config.listen_port)
@@ -44,6 +50,7 @@ class CameraRuntime:
         finally:
             await self.server.motion.disarm()
             await runner.cleanup()
+            stop_systemd_inhibit(systemd_inhibit)
             stop_caffeinate(caffeinate)
             self.console.print("[yellow]gattv camera stopped.[/]")
 
@@ -83,5 +90,7 @@ def _format_timestamp(value: datetime | None) -> str:
 
 def _sleep_status() -> str:
     return (
-        "prevented while camera runs" if sys.platform == "darwin" else "system default"
+        "prevented while camera runs"
+        if sys.platform in {"darwin", "linux"}
+        else "system default"
     )

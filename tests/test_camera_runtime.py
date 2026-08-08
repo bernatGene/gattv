@@ -48,8 +48,9 @@ def test_timestamp_format() -> None:
     assert _format_timestamp(datetime(2026, 8, 8, 12, 30, 10)) == "2026-08-08 12:30:10"
 
 
-def test_sleep_status_has_a_value() -> None:
-    assert _sleep_status() in {"prevented while camera runs", "system default"}
+def test_sleep_status_shows_linux_inhibitor() -> None:
+    with patch("gattv.camera_runtime.sys.platform", "linux"):
+        assert _sleep_status() == "prevented while camera runs"
 
 
 @pytest.mark.asyncio
@@ -65,7 +66,9 @@ async def test_run_passes_renderable_to_live_and_refreshes() -> None:
         patch("gattv.camera_runtime.web.TCPSite") as site_class,
         patch("gattv.camera_runtime.Live", return_value=live) as live_class,
         patch("gattv.camera_runtime.start_caffeinate", return_value=None),
+        patch("gattv.camera_runtime.start_systemd_inhibit", return_value=None),
         patch("gattv.camera_runtime.stop_caffeinate"),
+        patch("gattv.camera_runtime.stop_systemd_inhibit"),
     ):
         runner_class.return_value.setup = AsyncMock()
         runner_class.return_value.cleanup = AsyncMock()
