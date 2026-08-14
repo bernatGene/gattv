@@ -1,0 +1,45 @@
+                      Camera hardware test                       
+┏━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Property             ┃ Value                                  ┃
+┡━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ Camera               │ <redacted>                             │
+│ Backend              │ Video4Linux2                           │
+│ Device               │ /dev/video0                            │
+│ Configured mode      │ 1280x720 @ 15 fps                      │
+│ Active mode          │ 1280x720 @ 30 fps                      │
+│ Input codec          │ mjpeg                                  │
+│ Pixel format         │ yuvj422p                               │
+│ Native MJPEG packets │ yes                                    │
+│ Sample               │ 5 s, 150 packets                       │
+│ Measured packet rate │ 30.00 packets/s                        │
+│ Stream data rate     │ 3.67 MiB/s                             │
+│ Capture CPU          │ 2.1% of one core                       │
+│ Stream buffer (10 s) │ 36.7 MiB                               │
+│ BGR buffer (10 s)    │ 395.5 MiB                              │
+│ Suggested strategy   │ Timestamped native MJPEG packet buffer │
+│ Result               │ supported                              │
+└──────────────────────┴────────────────────────────────────────┘
+              Audio hardware test               
+┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Property              ┃ Value                ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━┩
+│ Platform              │ linux                │
+│ FFmpeg binary         │ <redacted>           │
+│ FFmpeg version        │ version 7.0.2-static │
+│ PyAV version          │ 17.1.0               │
+│ FFmpeg ALSA input     │ available            │
+│ FFmpeg PipeWire input │ not available        │
+│ PyAV ALSA input       │ available            │
+│ PyAV PipeWire input   │ not available        │
+│ arecord               │ version 1.2.9        │
+│ pw-record             │ <redacted>           │
+│ wpctl                 │ <redacted>           │
+└───────────────────────┴──────────────────────┘
+╭──────────────────────────────────────────────────────────────────────────────────────────────────── ALSA capture devices: arecord -l ─────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ raw device listing omitted by --censor                                                                                                                                                                                                    │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────────────────────── PipeWire audio nodes: wpctl status --name ────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ raw device listing omitted by --censor                                                                                                                                                                                                    │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+A/V acquisition (180 s): clap visibly near the beginning and again near the end.
+A/V validation failed while decoding NUT: <redacted>
