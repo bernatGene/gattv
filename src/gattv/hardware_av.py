@@ -71,8 +71,15 @@ class _StreamAccumulator:
 
 
 def build_macos_command(
-    executable: str, camera: CameraConfig, seconds: int, audio_device: str, output: Path
+    executable: str,
+    camera: CameraConfig,
+    seconds: int,
+    audio_device: str,
+    output: Path,
+    input_fps: int | None = None,
 ) -> list[str]:
+    capture_fps = input_fps or camera.fps
+    video_filter = ["-vf", f"fps={camera.fps}"] if capture_fps != camera.fps else []
     return [
         executable,
         "-hide_banner",
@@ -84,7 +91,7 @@ def build_macos_command(
         "-f",
         "avfoundation",
         "-framerate",
-        str(camera.fps),
+        str(capture_fps),
         "-video_size",
         f"{camera.width}x{camera.height}",
         "-pixel_format",
@@ -97,6 +104,7 @@ def build_macos_command(
         "0:v:0",
         "-map",
         "0:a:0",
+        *video_filter,
         "-c:v",
         "mjpeg",
         "-q:v",
@@ -230,6 +238,29 @@ def run_av_experiment(
         if capture is None:
             return False
         capture_log = "\n".join((capture.stdout, capture.stderr))
+        should_retry_macos = (
+            platform == "darwin"
+            and camera.fps != 30
+            and (capture.returncode != 0 or not nut_path.exists())
+        )
+        if should_retry_macos:
+            nut_path.unlink(missing_ok=True)
+            console.print(
+                f"[yellow]Configured {camera.fps} fps acquisition was unavailable; "
+                f"testing 30 -> {camera.fps} fps fallback.[/]"
+            )
+            capture = _run_ffmpeg(
+                build_macos_command(
+                    executable, camera, seconds, device, nut_path, input_fps=30
+                ),
+                seconds + ACQUISITION_GRACE_SECONDS,
+                console,
+                "acquisition",
+                report,
+            )
+            if capture is None:
+                return False
+            capture_log = "\n".join((capture.stdout, capture.stderr))
         if capture.returncode != 0:
             _report_failure(
                 console, capture_log, platform, device, "acquisition", report

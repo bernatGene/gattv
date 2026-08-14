@@ -35,6 +35,17 @@ def test_macos_command_uses_one_avfoundation_input() -> None:
     ]
     assert "-nostdin" in command
     assert "-thread_queue_size" in command
+    assert "-vf" not in command
+
+
+def test_macos_fallback_command_captures_at_30_and_filters_to_configured_fps() -> None:
+    command = build_macos_command(
+        "ffmpeg", CameraConfig(name="cat", fps=15), 180, "0", Path("out.nut"), 30
+    )
+
+    assert command[command.index("-framerate") + 1] == "30"
+    assert command[command.index("-vf") + 1] == "fps=15"
+    assert "0:0" in command
 
 
 def test_linux_command_uses_v4l2_alsa_and_relative_timestamps() -> None:
@@ -110,10 +121,12 @@ def test_success_converts_output_and_removes_temporary_artifact(tmp_path: Path) 
         StreamFacts(0, 10, 150, 150, 0), StreamFacts(0, 10, 470, 470, 480000)
     )
     nut_paths: list[Path] = []
+    acquisition_commands: list[list[str]] = []
 
     def run(command: list[str], **_: object) -> CompletedProcess[str]:
         destination = Path(command[-1])
         if destination.suffix == ".nut":
+            acquisition_commands.append(command)
             nut_paths.append(destination)
             destination.write_bytes(b"nut")
             return CompletedProcess(
@@ -138,7 +151,84 @@ def test_success_converts_output_and_removes_temporary_artifact(tmp_path: Path) 
 
     assert output.read_bytes() == b"mp4"
     assert not nut_paths[0].exists()
+    assert (
+        acquisition_commands[0][acquisition_commands[0].index("-framerate") + 1] == "15"
+    )
+    assert "-vf" not in acquisition_commands[0]
     assert "Estimated retained buffer" in console.export_text()
+
+
+def test_macos_fallback_retries_at_30_and_uses_only_fallback_artifact(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "result.mp4"
+    facts = AvFacts(
+        StreamFacts(0, 10, 150, 150, 0), StreamFacts(0, 10, 470, 470, 480000)
+    )
+    acquisition_commands: list[list[str]] = []
+    nut_paths: list[Path] = []
+
+    def run(command: list[str], **_: object) -> CompletedProcess[str]:
+        destination = Path(command[-1])
+        if destination.suffix != ".nut":
+            destination.write_bytes(b"mp4")
+            return CompletedProcess(command, 0, "", "")
+        acquisition_commands.append(command)
+        nut_paths.append(destination)
+        input_fps = command[command.index("-framerate") + 1]
+        if input_fps == "15":
+            destination.write_bytes(b"partial")
+            return CompletedProcess(command, 1, "", "unsupported 15 fps")
+        destination.write_bytes(b"fallback")
+        return CompletedProcess(
+            command,
+            0,
+            "",
+            "bench: utime=2s stime=1s rtime=3s\nbench: maxrss=100KiB",
+        )
+
+    console = Console(record=True)
+    with (
+        patch("gattv.hardware_av.sys.platform", "darwin"),
+        patch("gattv.hardware_av.imageio_ffmpeg.get_ffmpeg_exe", return_value="ffmpeg"),
+        patch("gattv.hardware_av.subprocess.run", side_effect=run),
+        patch("gattv.hardware_av.inspect_nut", return_value=facts),
+    ):
+        assert run_av_experiment(
+            CameraConfig(name="cat", fps=15), 10, 20, None, output, console
+        )
+
+    assert [
+        command[command.index("-framerate") + 1] for command in acquisition_commands
+    ] == ["15", "30"]
+    assert acquisition_commands[1][acquisition_commands[1].index("-vf") + 1] == "fps=15"
+    assert all(not path.exists() for path in nut_paths)
+    rendered = console.export_text()
+    assert "testing 30 -> 15 fps fallback" in rendered
+    assert "3.00 s" in rendered
+
+
+def test_macos_fallback_reports_failure_after_both_attempts(tmp_path: Path) -> None:
+    failed = Mock(returncode=1, stdout="", stderr="unsupported camera mode")
+    console = Console(record=True)
+    with (
+        patch("gattv.hardware_av.sys.platform", "darwin"),
+        patch("gattv.hardware_av.imageio_ffmpeg.get_ffmpeg_exe", return_value="ffmpeg"),
+        patch("gattv.hardware_av.subprocess.run", return_value=failed) as run,
+    ):
+        assert not run_av_experiment(
+            CameraConfig(name="cat", fps=15),
+            10,
+            20,
+            None,
+            tmp_path / "out.mp4",
+            console,
+        )
+
+    assert run.call_count == 2
+    rendered = console.export_text()
+    assert "testing 30 -> 15 fps fallback" in rendered
+    assert "acquisition failed" in rendered.lower()
 
 
 def test_acquisition_timeout_reports_and_cleans_temporary_data(tmp_path: Path) -> None:
@@ -156,6 +246,7 @@ def test_acquisition_timeout_reports_and_cleans_temporary_data(tmp_path: Path) -
         )
 
     assert run.call_args.kwargs["timeout"] == 35
+    assert run.call_count == 1
     assert "acquisition timed out" in console.export_text().lower()
 
 
