@@ -9,6 +9,7 @@ from rich.table import Table
 from gattv.config import CameraConfig
 from gattv.hardware_audio import report_audio_hardware
 from gattv.hardware_probe import HardwareProbeResult
+from gattv.hardware_report import ReportRedaction
 
 
 Probe = Callable[[CameraConfig, int], HardwareProbeResult]
@@ -19,14 +20,18 @@ def test_camera_hardware(
     buffer_seconds: int,
     sample_seconds: int,
     console: Console,
+    censor: bool = False,
 ) -> bool:
     result = _probe_camera(camera, sample_seconds)
+    report = ReportRedaction(censor)
     table = Table(title="Camera hardware test")
     table.add_column("Property", style="bold")
     table.add_column("Value")
-    table.add_row("Camera", camera.name)
+    table.add_row("Camera", report.camera_name(camera.name))
     table.add_row("Backend", result.backend)
-    table.add_row("Device", result.device)
+    table.add_row(
+        "Device", report.camera_device(camera.index, sys.platform) or result.device
+    )
     table.add_row(
         "Configured mode", f"{camera.width}x{camera.height} @ {camera.fps} fps"
     )
@@ -65,9 +70,9 @@ def test_camera_hardware(
     bgr_bytes = width * height * 3 * camera.fps * buffer_seconds
     table.add_row(f"BGR buffer ({buffer_seconds} s)", _format_mib(bgr_bytes))
     table.add_row("Suggested strategy", _suggested_strategy(result))
-    table.add_row("Result", result.detail)
+    table.add_row("Result", report.detail(result.detail, result.probe_failed))
     console.print(table)
-    report_audio_hardware(camera, console)
+    report_audio_hardware(camera, console, censor)
     return not result.probe_failed
 
 

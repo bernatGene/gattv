@@ -10,6 +10,7 @@ from rich.table import Table
 from rich.text import Text
 
 from gattv.config import CameraConfig
+from gattv.hardware_report import ReportRedaction
 
 
 COMMAND_TIMEOUT_SECONDS = 5
@@ -22,20 +23,23 @@ class CommandResult:
     returncode: int = 0
 
 
-def report_audio_hardware(camera: CameraConfig, console: Console) -> None:
+def report_audio_hardware(
+    camera: CameraConfig, console: Console, censor: bool = False
+) -> None:
+    report = ReportRedaction(censor)
     executable, ffmpeg_version, ffmpeg_devices = _probe_ffmpeg()
     table = Table(title="Audio hardware test")
     table.add_column("Property", style="bold")
     table.add_column("Value")
     table.add_row("Platform", sys.platform)
-    table.add_row("FFmpeg binary", executable)
-    table.add_row("FFmpeg version", ffmpeg_version)
+    table.add_row("FFmpeg binary", report.executable(executable))
+    table.add_row("FFmpeg version", report.version(ffmpeg_version))
     table.add_row("PyAV version", av.__version__)
 
     if sys.platform == "darwin":
-        _report_macos_audio(camera, console, table, executable, ffmpeg_devices)
+        _report_macos_audio(camera, console, table, executable, ffmpeg_devices, report)
     elif sys.platform == "linux":
-        _report_linux_audio(console, table, ffmpeg_devices)
+        _report_linux_audio(console, table, ffmpeg_devices, report)
     else:
         table.add_row("Audio device discovery", "Not supported on this platform.")
         console.print(table)
@@ -47,10 +51,11 @@ def _report_macos_audio(
     table: Table,
     executable: str,
     ffmpeg_devices: CommandResult,
+    report: ReportRedaction,
 ) -> None:
     table.add_row(
         "FFmpeg AVFoundation input",
-        _ffmpeg_input_device_available(ffmpeg_devices, "avfoundation"),
+        _ffmpeg_input_device_available(ffmpeg_devices, "avfoundation", report),
     )
     table.add_row(
         "PyAV AVFoundation input",
@@ -74,32 +79,42 @@ def _report_macos_audio(
             "",
         ],
         nonzero_is_listing=True,
+        report=report,
     )
 
 
 def _report_linux_audio(
-    console: Console, table: Table, ffmpeg_devices: CommandResult
+    console: Console,
+    table: Table,
+    ffmpeg_devices: CommandResult,
+    report: ReportRedaction,
 ) -> None:
     table.add_row(
-        "FFmpeg ALSA input", _ffmpeg_input_device_available(ffmpeg_devices, "alsa")
+        "FFmpeg ALSA input",
+        _ffmpeg_input_device_available(ffmpeg_devices, "alsa", report),
     )
     table.add_row(
         "FFmpeg PipeWire input",
-        _ffmpeg_input_device_available(ffmpeg_devices, "pipewire"),
+        _ffmpeg_input_device_available(ffmpeg_devices, "pipewire", report),
     )
     table.add_row("PyAV ALSA input", _format_available(av.formats_available, "alsa"))
     table.add_row(
         "PyAV PipeWire input", _format_available(av.formats_available, "pipewire")
     )
-    table.add_row("arecord", _command_version(["arecord", "--version"]))
-    table.add_row("pw-record", _command_version(["pw-record", "--version"]))
-    table.add_row("wpctl", _command_version(["wpctl", "--version"]))
+    table.add_row("arecord", report.version(_command_version(["arecord", "--version"])))
+    table.add_row(
+        "pw-record", report.version(_command_version(["pw-record", "--version"]))
+    )
+    table.add_row("wpctl", report.version(_command_version(["wpctl", "--version"])))
     console.print(table)
-    _print_devices(console, "ALSA capture devices: arecord -l", ["arecord", "-l"])
+    _print_devices(
+        console, "ALSA capture devices: arecord -l", ["arecord", "-l"], report=report
+    )
     _print_devices(
         console,
         "PipeWire audio nodes: wpctl status --name",
         ["wpctl", "status", "--name"],
+        report=report,
     )
 
 
@@ -129,9 +144,11 @@ def _format_available(formats: set[str], name: str) -> str:
     return "available" if name in formats else "not available"
 
 
-def _ffmpeg_input_device_available(result: CommandResult, name: str) -> str:
+def _ffmpeg_input_device_available(
+    result: CommandResult, name: str, report: ReportRedaction | None = None
+) -> str:
     if result.error is not None:
-        return f"unknown ({result.error})"
+        return f"unknown ({(report or ReportRedaction()).availability_error(result.error)})"
     return _format_available(_input_devices(result), name)
 
 
@@ -145,7 +162,12 @@ def _print_devices(
     title: str,
     command: list[str],
     nonzero_is_listing: bool = False,
+    report: ReportRedaction | None = None,
 ) -> None:
+    policy = report or ReportRedaction()
+    if policy.censor:
+        console.print(Panel(Text(policy.listing_message()), title=title))
+        return
     result = _run_command(command, allow_nonzero=nonzero_is_listing)
     output = result.error or result.output.strip() or "No devices reported."
     if nonzero_is_listing and result.error is None and result.returncode != 0:

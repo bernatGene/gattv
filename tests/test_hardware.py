@@ -108,4 +108,30 @@ def test_hardware_test_reports_audio_diagnostics_on_all_platforms() -> None:
         supported = run_hardware_test(camera, 10, 5, console)
 
     assert supported is True
-    report_audio.assert_called_once_with(camera, console)
+    report_audio.assert_called_once_with(camera, console, False)
+
+
+def test_hardware_test_censors_camera_and_probe_details() -> None:
+    camera = CameraConfig(name="alice@laptop.example.com")
+    result = HardwareProbeResult(
+        "backend",
+        "/Users/alice/gattv",
+        "mjpeg",
+        True,
+        "alice laptop.example.com /Users/alice/gattv",
+        probe_failed=False,
+    )
+    console = Console(record=True)
+
+    with (
+        patch("gattv.hardware._probe_camera", return_value=result),
+        patch("gattv.hardware.report_audio_hardware") as report_audio,
+    ):
+        assert run_hardware_test(camera, 10, 5, console, censor=True)
+
+    output = console.export_text()
+    assert "alice" not in output
+    assert "laptop.example.com" not in output
+    assert "/Users" not in output
+    assert "Native MJPEG packets" in output
+    report_audio.assert_called_once_with(camera, console, True)

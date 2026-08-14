@@ -14,6 +14,7 @@ from gattv.config import (
 )
 from gattv.config_wizard import ConfigWizard
 from gattv.hardware import test_camera_hardware
+from gattv.hardware_av import run_av_experiment
 from gattv.hub_server import HubServer
 
 
@@ -53,11 +54,31 @@ def camera(config_path: Path = DEFAULT_CAMERA_CONFIG_PATH) -> None:
 def test_hw(
     config_path: Path = DEFAULT_CAMERA_CONFIG_PATH,
     seconds: int = typer.Option(5, min=1, max=30),
+    av_seconds: int | None = typer.Option(None, min=10, max=900),
+    audio_device: str | None = typer.Option(
+        None, help="Diagnostic A/V input override."
+    ),
+    output_path: Path = typer.Option(Path("gattv-hardware-sync.mp4"), "--output-path"),
+    censor: bool = typer.Option(
+        False, help="Redact identifiers for a shareable report."
+    ),
 ) -> None:
     """Benchmark camera capture and report audio capture facts."""
     config = _load_config(config_path, load_camera_config)
     buffer_seconds = config.motion.pre_seconds + config.motion.post_seconds
-    if not test_camera_hardware(config.camera, buffer_seconds, seconds, console):
+    if not test_camera_hardware(
+        config.camera, buffer_seconds, seconds, console, censor
+    ):
+        raise typer.Exit(1)
+    if av_seconds is not None and not run_av_experiment(
+        config.camera,
+        buffer_seconds,
+        av_seconds,
+        audio_device,
+        output_path,
+        console,
+        censor,
+    ):
         raise typer.Exit(1)
 
 

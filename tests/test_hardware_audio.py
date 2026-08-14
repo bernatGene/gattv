@@ -137,3 +137,37 @@ def test_unsupported_platform_audio_report_is_explicit() -> None:
         report_audio_hardware(CameraConfig(name="test"), console)
 
     assert "Not supported on this platform." in console.export_text()
+
+
+def test_censored_audio_report_omits_paths_and_raw_pipewire_listing() -> None:
+    results = iter(
+        [
+            CommandResult("ffmpeg version 7.1 built by alice@laptop.example.com"),
+            CommandResult(" DE alsa ALSA audio input\n D pipewire"),
+            CommandResult("arecord version 1.2.11 /Users/alice"),
+            CommandResult("pw-record version 1.2.8 laptop.example.com"),
+            CommandResult("wpctl version 1.2.8"),
+        ]
+    )
+    console = Console(record=True, width=120)
+
+    with (
+        patch("gattv.hardware_audio.sys.platform", "linux"),
+        patch(
+            "gattv.hardware_audio.imageio_ffmpeg.get_ffmpeg_exe",
+            return_value="/Users/alice/bin/ffmpeg",
+        ),
+        patch("gattv.hardware_audio._run_command", side_effect=results) as run_command,
+        patch("gattv.hardware_audio.av") as av,
+    ):
+        av.__version__ = "17.1.0"
+        av.formats_available = {"alsa", "pipewire"}
+        report_audio_hardware(CameraConfig(name="alice-camera"), console, censor=True)
+
+    output = console.export_text()
+    for sensitive in ("alice", "laptop.example.com", "/Users", "ffmpeg" + " built"):
+        assert sensitive not in output
+    assert "raw device listing omitted by --censor" in output
+    assert "FFmpeg ALSA input" in output
+    assert "version 7.1" in output
+    assert run_command.call_count == 5
