@@ -54,7 +54,7 @@ def test_hw(
     config_path: Path = DEFAULT_CAMERA_CONFIG_PATH,
     seconds: int = typer.Option(5, min=1, max=30),
 ) -> None:
-    """Benchmark camera capture and rolling-buffer options."""
+    """Benchmark camera capture and report audio capture facts."""
     config = _load_config(config_path, load_camera_config)
     buffer_seconds = config.motion.pre_seconds + config.motion.post_seconds
     if not test_camera_hardware(config.camera, buffer_seconds, seconds, console):

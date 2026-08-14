@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.table import Table
 
 from gattv.config import CameraConfig
+from gattv.hardware_audio import report_audio_hardware
 from gattv.hardware_probe import HardwareProbeResult
 
 
@@ -66,6 +67,7 @@ def test_camera_hardware(
     table.add_row("Suggested strategy", _suggested_strategy(result))
     table.add_row("Result", result.detail)
     console.print(table)
+    report_audio_hardware(camera, console)
     return not result.probe_failed
 
 

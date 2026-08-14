@@ -94,3 +94,18 @@ def test_hardware_test_succeeds_without_mjpeg() -> None:
         supported = run_hardware_test(camera, 10, 5, console)
 
     assert supported is True
+
+
+def test_hardware_test_reports_audio_diagnostics_on_all_platforms() -> None:
+    camera = CameraConfig(name="test")
+    result = HardwareProbeResult("backend", "camera", "mjpeg", True, "supported")
+    console = Console()
+
+    with (
+        patch("gattv.hardware._probe_camera", return_value=result),
+        patch("gattv.hardware.report_audio_hardware") as report_audio,
+    ):
+        supported = run_hardware_test(camera, 10, 5, console)
+
+    assert supported is True
+    report_audio.assert_called_once_with(camera, console)
