@@ -12,9 +12,9 @@
 │ Native MJPEG packets │ yes                                    │
 │ Sample               │ 5 s, 150 packets                       │
 │ Measured packet rate │ 30.00 packets/s                        │
-│ Stream data rate     │ 3.67 MiB/s                             │
-│ Capture CPU          │ 2.1% of one core                       │
-│ Stream buffer (10 s) │ 36.7 MiB                               │
+│ Stream data rate     │ 4.04 MiB/s                             │
+│ Capture CPU          │ 2.6% of one core                       │
+│ Stream buffer (10 s) │ 40.4 MiB                               │
 │ BGR buffer (10 s)    │ 395.5 MiB                              │
 │ Suggested strategy   │ Timestamped native MJPEG packet buffer │
 │ Result               │ supported                              │
@@ -42,4 +42,21 @@
 │ raw device listing omitted by --censor                                                                                                                                                                                                    │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 A/V acquisition (180 s): clap visibly near the beginning and again near the end.
-A/V validation failed while decoding NUT: <redacted>
+                                A/V capture experiment                                
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Property                  ┃ Value                                                  ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ NUT artifact              │ 695.6 MiB                                              │
+│ Estimated retained buffer │ 38.6 MiB (10 s)                                        │
+│ Acquisition elapsed / CPU │ 180.14 s; user 2.24 s, system 3.79 s; 3.3% of one core │
+│ Acquisition max RSS       │ 109.8 MiB                                              │
+│ Video first/end PTS       │ 0.000 s / 180.033 s                                    │
+│ Video decoded             │ 5401 packets, 5400 decoded frames                      │
+│ Audio first/end PTS       │ 0.000 s / 180.000 s                                    │
+│ Audio decoded             │ 2111 packets, 2110 decoded frames, 8640000 samples     │
+│ Audio − video end delta   │ -0.033 s                                               │
+│ MP4 output                │ <output>/gattv-hardware-sync.mp4 (82.4 MiB)            │
+└───────────────────────────┴────────────────────────────────────────────────────────┘
+FFmpeg warnings:
+raw device listing omitted by --censor
+Inspect the MP4 and compare the visible and audible beginning/end claps.
