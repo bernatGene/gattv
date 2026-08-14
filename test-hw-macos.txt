@@ -1,0 +1,43 @@
+                                 Camera hardware test                                  
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Property                     ┃ Value                                                ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ Camera                       │ <redacted>                                           │
+│ Backend                      │ AVFoundation                                         │
+│ Device                       │ video device 0                                       │
+│ Configured mode              │ 1280x720 @ 15 fps                                    │
+│ Active mode                  │ 1280x720 @ 30 fps                                    │
+│ Supported modes              │ 1280x720@[1.000000 30.000000]fps                     │
+│                              │ 640x480@[1.000000 30.000000]fps                      │
+│                              │ 320x240@[1.000000 30.000000]fps                      │
+│ Input codec                  │ rawvideo                                             │
+│ Pixel format                 │ uyvy422                                              │
+│ Native MJPEG packets         │ no                                                   │
+│ Sample                       │ 5 s, 150 packets                                     │
+│ Measured packet rate         │ 30.00 packets/s                                      │
+│ Stream data rate             │ 52.73 MiB/s                                          │
+│ Capture CPU                  │ 11.3% of one core                                    │
+│ Stream buffer (10 s)         │ 527.3 MiB                                            │
+│ Sampled native buffer (10 s) │ 263.7 MiB                                            │
+│ BGR buffer (10 s)            │ 395.5 MiB                                            │
+│ Suggested strategy           │ Timestamped uyvy422 frames sampled at configured FPS │
+│ Result                       │ supported                                            │
+└──────────────────────────────┴──────────────────────────────────────────────────────┘
+                   Audio hardware test                   
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Property                     ┃ Value                  ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ Platform                     │ darwin                 │
+│ FFmpeg binary                │ <redacted>             │
+│ FFmpeg version               │ version 7.1            │
+│ PyAV version                 │ 17.1.0                 │
+│ FFmpeg AVFoundation input    │ available              │
+│ PyAV AVFoundation input      │ available              │
+│ Configured AVFoundation pair │ 0:<audio device index> │
+└──────────────────────────────┴────────────────────────┘
+╭───────────────────────────────────────────────────────────────── AVFoundation devices: ffmpeg -f avfoundation -list_devices true -i '' ──────────────────────────────────────────────────────────────────╮
+│ raw device listing omitted by --censor                                                                                                                                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+A/V acquisition (180 s): clap visibly near the beginning and again near the end.
+acquisition failed: FFmpeg could not open a requested device or format. Check camera/audio device availability.
+FFmpeg warnings: raw device/log output omitted by --censor
