@@ -87,13 +87,17 @@ def test_parse_benchmark_treats_darwin_maxrss_as_bytes() -> None:
     assert metrics.max_rss_bytes == 23_248_896
 
 
-def test_inspect_nut_demuxes_mixed_streams_once_and_includes_video_duration() -> None:
+def test_inspect_nut_demuxes_mixed_streams_once_without_second_decoder_flush() -> None:
     video = SimpleNamespace(type="video", time_base=Fraction(1, 10), average_rate=10)
     audio = SimpleNamespace(
         type="audio", time_base=Fraction(1, 48000), average_rate=None
     )
-    video.codec_context = Mock(decode=Mock(return_value=[]))
-    audio.codec_context = Mock(decode=Mock(return_value=[]))
+    video.codec_context = Mock(
+        decode=Mock(side_effect=AssertionError("decoder was already flushed by demux"))
+    )
+    audio.codec_context = Mock(
+        decode=Mock(side_effect=AssertionError("decoder was already flushed by demux"))
+    )
     video_frame = SimpleNamespace(pts=10, time_base=Fraction(1, 10), duration=1)
     audio_frame = SimpleNamespace(
         pts=24000, time_base=Fraction(1, 48000), samples=480, sample_rate=48000
@@ -113,6 +117,8 @@ def test_inspect_nut_demuxes_mixed_streams_once_and_includes_video_duration() ->
     container.demux.assert_called_once_with([video, audio])
     assert facts.video == StreamFacts(1, 1.1, 1, 1, 0)
     assert facts.audio == StreamFacts(0.5, 0.51, 1, 1, 480)
+    video.codec_context.decode.assert_not_called()
+    audio.codec_context.decode.assert_not_called()
 
 
 def test_success_converts_output_and_removes_temporary_artifact(tmp_path: Path) -> None:

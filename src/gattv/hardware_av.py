@@ -379,9 +379,6 @@ def inspect_nut(path: Path) -> AvFacts:
             accumulator.packets += 1
             for frame in packet.decode():
                 _add_frame(accumulator, stream_type, frame, packet.stream)
-        for stream in streams:
-            for frame in stream.codec_context.decode(None):
-                _add_frame(accumulators[stream.type], stream.type, frame, stream)
     return AvFacts(accumulators["video"].facts(), accumulators["audio"].facts())
 
 
